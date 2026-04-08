@@ -1,0 +1,340 @@
+# 📊 Sales History Module (POS)
+
+## Technical Specification (Vue.js + Backend + WooCommerce)
+
+---
+
+# 🧠 ROLE
+
+You are a **senior full-stack engineer**.
+Your task is to design and implement a **Sales History module** for an existing POS system.
+
+---
+
+# 🎯 OBJECTIVE
+
+Build a module that allows users to:
+
+* View past sales (orders)
+* Search and filter sales
+* View sale details
+* (Optional) Reprint or reuse a sale
+
+---
+
+# 🧱 ARCHITECTURE
+
+```id="hist-arch"
+Frontend (Vue.js)
+        ↓
+Backend API
+        ↓
+WooCommerce REST API (Orders)
+```
+
+---
+
+# 🖥️ FRONTEND (Vue.js)
+
+## Tech Stack
+
+* Vue 3 (Composition API)
+* Pinia
+* Axios
+* TailwindCSS
+
+---
+
+## MODULE STRUCTURE
+
+```id="hist-structure"
+modules/
+ └── historial/
+      ├── views/
+      │    ├── HistorialView.vue
+      │    └── DetalleVentaView.vue
+      ├── components/
+      │    ├── VentaItem.vue
+      │    ├── FiltrosHistorial.vue
+      │    └── ResumenVenta.vue
+      ├── store/
+      │    └── historialStore.js
+      └── services/
+           └── historialService.js
+```
+
+---
+
+# 📋 MAIN FEATURES
+
+---
+
+## 1. Sales List (Historial)
+
+### Requirements
+
+* Display list of sales (orders)
+* Show:
+
+  * Order ID
+  * Customer name
+  * Total amount
+  * Date
+  * Status
+
+---
+
+## 2. Filters
+
+### Must support:
+
+* Date range (from - to)
+* Customer name
+* Order ID
+* Status (completed, pending, cancelled)
+
+---
+
+## 3. Search
+
+* Real-time or debounced search
+* By:
+
+  * Customer
+  * Order ID
+
+---
+
+## 4. Sale Detail View
+
+### Must include:
+
+* Products purchased
+* Quantities
+* Prices
+* Total
+* Customer info
+* Payment method
+* Date
+
+---
+
+## 5. Actions (Optional)
+
+* Recreate order (add items back to cart)
+* Print receipt (future)
+
+---
+
+# 🧠 STATE MANAGEMENT (Pinia)
+
+## historialStore
+
+```javascript id="store-historial"
+import { defineStore } from 'pinia'
+
+export const useHistorialStore = defineStore('historial', {
+  state: () => ({
+    ventas: [],
+    loading: false,
+    filtros: {
+      fechaInicio: null,
+      fechaFin: null,
+      cliente: '',
+      estado: ''
+    }
+  }),
+
+  actions: {
+    async fetchVentas() {
+      this.loading = true
+      const res = await fetch('/api/ordenes')
+      this.ventas = await res.json()
+      this.loading = false
+    }
+  }
+})
+```
+
+---
+
+# 🔌 FRONTEND SERVICE
+
+```javascript id="historial-service"
+import { api } from '@/services/api'
+
+export const getVentas = (params) => {
+  return api.get('/ordenes', { params })
+}
+```
+
+---
+
+# 🧠 BACKEND REQUIREMENTS
+
+## Endpoint
+
+### GET /api/ordenes
+
+### Query Params
+
+```id="query-params"
+?fechaInicio=
+&fechaFin=
+&cliente=
+&estado=
+&page=
+&limit=
+```
+
+---
+
+## Responsibilities
+
+* Fetch orders from WooCommerce
+* Apply filters
+* Paginate results
+* Return simplified response
+
+---
+
+## Response Format
+
+```json id="historial-response"
+[
+  {
+    "id": 123,
+    "cliente": "Juan Perez",
+    "total": 50000,
+    "estado": "completed",
+    "fecha": "2026-03-29",
+    "items": [
+      {
+        "nombre": "Producto A",
+        "cantidad": 2,
+        "precio": 10000
+      }
+    ]
+  }
+]
+```
+
+---
+
+# 🔌 WOO COMMERCE INTEGRATION
+
+## Endpoint
+
+```id="woo-orders"
+GET /wp-json/wc/v3/orders
+```
+
+---
+
+## Mapping Required
+
+From Woo → Internal:
+
+* `id`
+* `billing.first_name + last_name`
+* `total`
+* `status`
+* `date_created`
+* `line_items`
+
+---
+
+# 🔄 FLOW
+
+1. User opens "Historial"
+2. Frontend calls `/api/ordenes`
+3. Backend fetches WooCommerce orders
+4. Backend transforms data
+5. Frontend displays list
+6. User applies filters
+7. New request with params
+
+---
+
+# 📊 PAGINATION
+
+Required:
+
+* Page-based pagination
+* Default: page=1, limit=20
+
+---
+
+# ⚡ PERFORMANCE
+
+* Lazy loading
+* Debounce filters/search
+* Cache recent results
+
+---
+
+# 📱 UI/UX REQUIREMENTS
+
+* Scrollable list
+* Fast load
+* Clear hierarchy (total, cliente, fecha)
+* Click → detalle
+
+---
+
+# 🔐 SECURITY
+
+* Validate query params
+* Sanitize inputs
+* Protect backend
+
+---
+
+# 🧪 TESTING
+
+* Test filters
+* Test pagination
+* Test empty states
+* Test error handling
+
+---
+
+# 🚀 MVP DEFINITION
+
+DONE when:
+
+* Sales list loads
+* Filters work
+* Detail view works
+* Pagination works
+* Data matches WooCommerce
+
+---
+
+# 📦 OPTIONAL FEATURES
+
+* Export to CSV
+* Print receipt
+* Analytics (ventas por día)
+* Offline cache
+
+---
+
+# 🧠 IMPLEMENTATION RULES
+
+* Keep components reusable
+* Avoid duplicated logic
+* Separate UI / logic / services
+* Handle loading & error states
+
+---
+
+# 🎯 FINAL GOAL
+
+A fast, reliable sales history module that allows users to:
+
+* Understand past sales
+* Search quickly
+* Access details instantly
+
+---

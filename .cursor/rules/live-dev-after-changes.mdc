@@ -1,0 +1,28 @@
+---
+description: Tras cambios en código, ejecutar comandos y dejar dev servers para ver resultado en vivo
+alwaysApply: true
+---
+
+# NariPos — vista en vivo tras cambios
+
+Cuando modifiques código en este repositorio:
+
+1. **Ejecuta tú los comandos** en terminal (no delegues al usuario) para que pueda ver el resultado en el navegador.
+
+2. **Backend** (`backend/`): debe estar escuchando en **http://localhost:3001**.
+   - Arranque: desde `backend/`, `npm start`.
+   - No uses `npm run dev` si en el sistema aparece `EMFILE: too many open files, watch`; en ese caso mantén `npm start`.
+   - Si el proceso debe quedar vivo en segundo plano en la sesión del agente, puedes usar:
+     `node -e "const { start } = require('./src/server'); start(); setInterval(() => {}, 1000)"` desde `backend/`.
+   - Si el puerto 3001 está ocupado por una instancia vieja del mismo proyecto, libera el puerto y vuelve a arrancar.
+
+3. **Frontend** (`frontend/`): Vite en **http://localhost:5173**.
+   - Arranque: desde `frontend/`, `npm run dev` en segundo plano.
+
+4. **Tras cambios solo en frontend**: basta con que Vite recargue (HMR); si el dev server no estaba corriendo, inícialo.
+
+5. **Tras cambios solo en backend**: reinicia el proceso Node del backend para cargar cambios (no hay HMR en Express).
+
+6. **Cambios triviales** (solo comentarios o markdown sin impacto en runtime): no hace falta reiniciar.
+
+7. Opcional tras cambios grandes en frontend: `npm run build` en `frontend/` para validar que compila.

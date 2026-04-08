@@ -1,0 +1,359 @@
+# 🧾 POS Web MVP (Vue.js + WooCommerce)
+
+## AI Implementation Specification
+
+---
+
+# 🧠 ROLE
+
+You are a **senior full-stack engineer**.
+Your task is to **design and implement a functional MVP** of a POS (Point of Sale) system connected to WooCommerce.
+
+---
+
+# 🎯 OBJECTIVE
+
+Build a **web-based POS system** that allows:
+
+* Viewing products from WooCommerce
+* Searching products (name or SKU)
+* Adding products to a cart
+* Creating orders
+* Managing customers (basic)
+* Running on tablet (responsive UI)
+
+---
+
+# ⚠️ CONSTRAINTS
+
+* ❌ DO NOT connect directly to WooCommerce from frontend
+* ✅ MUST use a backend intermediary
+* ✅ MUST follow clean architecture
+* ✅ MUST be production-oriented (not demo code)
+* ❌ NO MCP / AI agents (this is pure MVP)
+
+---
+
+# 🧱 SYSTEM ARCHITECTURE
+
+```
+Frontend (Vue.js)
+        ↓
+Backend API (Node.js / Express)
+        ↓
+WooCommerce REST API
+```
+
+---
+
+# 🖥️ FRONTEND REQUIREMENTS (Vue 3)
+
+## Tech Stack
+
+* Vue 3 (Composition API)
+* Vite
+* Pinia (state management)
+* Vue Router
+* Axios
+* TailwindCSS
+
+---
+
+## Required Modules
+
+### 1. Products Module
+
+* Fetch products from backend
+* Display grid/list
+* Search by name or SKU
+
+---
+
+### 2. Cart Module
+
+* Add product
+* Increase/decrease quantity
+* Remove product
+* Calculate total
+
+---
+
+### 3. Checkout Module
+
+* Select customer
+* Confirm order
+* Send order to backend
+
+---
+
+### 4. Customers Module
+
+* Search customers
+* Create customer (basic: name + phone)
+
+---
+
+## State Management (Pinia)
+
+You must create:
+
+* `useProductosStore`
+* `useCarritoStore`
+* `useClientesStore`
+
+---
+
+## API Layer
+
+Use Axios with base config:
+
+```
+baseURL: /api
+```
+
+---
+
+# 🧠 BACKEND REQUIREMENTS (Node.js)
+
+## Tech Stack
+
+* Node.js
+* Express
+
+---
+
+## Responsibilities
+
+* Handle all communication with WooCommerce
+* Hide credentials
+* Transform data
+* Handle errors
+
+---
+
+## Environment Variables
+
+```
+WOO_URL=
+WOO_CONSUMER_KEY=
+WOO_CONSUMER_SECRET=
+```
+
+---
+
+## Endpoints to Implement
+
+### GET /api/productos
+
+* Fetch products from WooCommerce
+* Return simplified structure:
+
+```
+{
+  id,
+  nombre,
+  precio,
+  stock,
+  sku
+}
+```
+
+---
+
+### POST /api/orden
+
+* Receive cart data
+* Transform to WooCommerce format
+* Create order
+
+Example request:
+
+```
+{
+  cliente: {
+    nombre: "Juan",
+    telefono: "3000000000"
+  },
+  items: [
+    { productId: 1, cantidad: 2 }
+  ]
+}
+```
+
+---
+
+### GET /api/clientes
+
+* Fetch WooCommerce customers
+
+---
+
+### POST /api/clientes
+
+* Create customer in WooCommerce
+
+---
+
+# 🔌 WOO COMMERCE INTEGRATION
+
+Use REST API:
+
+* GET /products
+* POST /orders
+* GET /customers
+* POST /customers
+
+Authentication:
+
+* Basic Auth (consumer key + secret)
+
+---
+
+# 🔄 SALES FLOW
+
+1. Load products
+2. Search/select product
+3. Add to cart
+4. Select/create customer
+5. Confirm order
+6. Send to backend
+7. Backend creates WooCommerce order
+8. Return success response
+
+---
+
+# 🗄️ DATA MODELS
+
+## Product
+
+```
+{
+  id: number,
+  nombre: string,
+  precio: number,
+  stock: number,
+  sku?: string
+}
+```
+
+---
+
+## Cart Item
+
+```
+{
+  productId: number,
+  nombre: string,
+  precio: number,
+  cantidad: number
+}
+```
+
+---
+
+## Customer
+
+```
+{
+  id: number,
+  nombre: string,
+  telefono?: string
+}
+```
+
+---
+
+# 🧪 TESTING REQUIREMENTS
+
+* Mock API responses
+* Test cart logic
+* Test API integration
+
+---
+
+# ⚡ PERFORMANCE REQUIREMENTS
+
+* Debounce search input
+* Cache products in memory or localStorage
+* Lazy load routes
+
+---
+
+# 📱 UI/UX REQUIREMENTS
+
+* Touch-friendly (large buttons)
+* Fast interactions
+* Minimal steps to complete sale
+* Responsive (tablet-first)
+
+---
+
+# 🔐 SECURITY REQUIREMENTS
+
+* NEVER expose WooCommerce credentials in frontend
+* Use HTTPS
+* Validate backend inputs
+
+---
+
+# 🚀 MVP DEFINITION (DONE WHEN)
+
+* Products list works
+* Search works
+* Cart works
+* Order is created in WooCommerce
+* Customers can be selected/created
+* UI usable on tablet
+
+---
+
+# 📦 OPTIONAL (IF TIME)
+
+* PWA support
+* Offline cache
+* Barcode scanning
+
+---
+
+# 🧠 IMPLEMENTATION RULES
+
+* Use modular structure
+* Separate concerns (services, store, components)
+* Avoid hardcoded values
+* Write reusable code
+* Handle loading and error states
+
+---
+
+# ✅ FINAL OUTPUT EXPECTATION
+
+The system must include:
+
+1. Vue.js frontend project
+2. Node.js backend project
+3. Working integration with WooCommerce
+4. Clear folder structure
+5. Instructions to run locally
+
+---
+
+# 💡 IMPORTANT
+
+Focus on:
+
+* Simplicity
+* Performance
+* Real usability
+
+Avoid:
+
+* Overengineering
+* Unnecessary abstractions
+
+---
+
+# 🎯 END GOAL
+
+A working POS system capable of processing real sales using WooCommerce as backend.
+
+---
