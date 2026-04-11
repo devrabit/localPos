@@ -1,6 +1,7 @@
 const express = require('express')
 const cors = require('cors')
 const createApiRouter = require('./routes/api')
+const { postPrintHandler } = require('./routes/print')
 const wooClient = require('./services/wooClient')
 const { formatWooError } = require('./utils/wooErrors')
 const { assertEnv, env } = require('./config/env')
@@ -8,11 +9,13 @@ const { assertEnv, env } = require('./config/env')
 const app = express()
 
 app.use(cors())
-app.use(express.json())
+app.use(express.json({ limit: '2mb' }))
 
 app.get('/health', (_req, res) => {
   res.json({ ok: true })
 })
+
+app.post('/print', postPrintHandler)
 
 app.use('/api', createApiRouter(wooClient))
 

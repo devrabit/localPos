@@ -2,7 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import api from '../services/api'
 
-const CACHE_KEY = 'pos_productos_cache_v3'
+const CACHE_KEY = 'pos_productos_cache_v4'
 
 export const useProductosStore = defineStore('productos', () => {
   const productos = ref([])

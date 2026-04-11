@@ -11,6 +11,8 @@ export const useCarritoStore = defineStore('carrito', () => {
   const creatingOrder = ref(false)
   const orderError = ref('')
   const orderSuccess = ref('')
+  /** Ultima venta confirmada para imprimir factura (spec ImpresionDeFactura) */
+  const lastFactura = ref(null)
 
   function agregarProducto(producto) {
     if (producto.tipo === 'variable') return
@@ -102,6 +104,10 @@ export const useCarritoStore = defineStore('carrito', () => {
     items.value = []
   }
 
+  function descartarUltimaFactura() {
+    lastFactura.value = null
+  }
+
   const total = computed(() =>
     items.value.reduce((acc, item) => acc + item.precio * item.cantidad, 0),
   )
@@ -130,7 +136,32 @@ export const useCarritoStore = defineStore('carrito', () => {
           telefono: cliente.telefono ? String(cliente.telefono).trim() : '',
         }
       }
+      const itemsSnapshot = items.value.map((i) => ({
+        nombre: i.nombre,
+        cantidad: i.cantidad,
+        precio: i.precio,
+        total: i.precio * i.cantidad,
+      }))
+      const totalNum = items.value.reduce((acc, i) => acc + i.precio * i.cantidad, 0)
+      const cli = cliente || {}
       const { data } = await api.post('/orden', payload)
+      const nombreCliente =
+        cli.nombre && String(cli.nombre).trim()
+          ? String(cli.nombre).trim()
+          : cli.id != null
+            ? `Cliente #${cli.id}`
+            : 'Mostrador'
+      lastFactura.value = {
+        id: String(data.orderId),
+        fecha: new Date().toISOString(),
+        cliente: {
+          nombre: nombreCliente,
+          documento: cli.telefono ? String(cli.telefono).trim() : '',
+        },
+        items: itemsSnapshot,
+        total: totalNum,
+        metodo_pago: 'POS',
+      }
       orderSuccess.value = `Orden #${data.orderId} creada correctamente`
       limpiar()
       return data
@@ -147,6 +178,7 @@ export const useCarritoStore = defineStore('carrito', () => {
     creatingOrder,
     orderError,
     orderSuccess,
+    lastFactura,
     total,
     agregarProducto,
     agregarVariacion,
@@ -156,5 +188,6 @@ export const useCarritoStore = defineStore('carrito', () => {
     eliminar,
     limpiar,
     crearOrden,
+    descartarUltimaFactura,
   }
 })

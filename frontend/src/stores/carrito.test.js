@@ -92,4 +92,16 @@ describe('useCarritoStore', () => {
       items: [{ productId: 2, cantidad: 1 }],
     })
   })
+
+  it('crearOrden guarda lastFactura y vacia carrito', async () => {
+    vi.mocked(api.post).mockResolvedValue({ data: { orderId: 42 } })
+    const store = useCarritoStore()
+    store.agregarProducto({ id: 1, nombre: 'A', precio: 10, tipo: 'simple', stock: -1 })
+    await store.crearOrden({ nombre: 'Juan', telefono: '300' })
+    expect(store.lastFactura).toBeTruthy()
+    expect(store.lastFactura.id).toBe('42')
+    expect(store.lastFactura.items).toHaveLength(1)
+    expect(store.lastFactura.cliente.nombre).toBe('Juan')
+    expect(store.items).toHaveLength(0)
+  })
 })

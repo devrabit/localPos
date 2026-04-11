@@ -7,6 +7,7 @@ import CustomerPanel from '../components/CustomerPanel.vue'
 import { useProductosStore } from '../stores/productos'
 import { useCarritoStore } from '../stores/carrito'
 import { useClientesStore } from '../stores/clientes'
+import { imprimirFactura } from '../utils/invoicePrint'
 
 const productosStore = useProductosStore()
 const carritoStore = useCarritoStore()
@@ -16,6 +17,8 @@ const debounceTimer = ref(null)
 const searchInput = ref('')
 const customerPanelRef = ref(null)
 const variableProduct = ref(null)
+const facturaLoading = ref(false)
+const facturaError = ref('')
 
 function onVariacionElegida(payload) {
   carritoStore.agregarVariacion(payload)
@@ -45,6 +48,20 @@ async function crearCliente(payload) {
   const ok = await clientesStore.crearCliente(payload)
   if (ok) {
     customerPanelRef.value?.resetCreacionForm()
+  }
+}
+
+async function imprimirFacturaUltimaVenta() {
+  const f = carritoStore.lastFactura
+  if (!f) return
+  facturaLoading.value = true
+  facturaError.value = ''
+  try {
+    await imprimirFactura(f)
+  } catch (e) {
+    facturaError.value = e?.message || 'No se pudo abrir la impresion'
+  } finally {
+    facturaLoading.value = false
   }
 }
 </script>
@@ -84,12 +101,31 @@ async function crearCliente(payload) {
     <p v-if="carritoStore.orderError" class="mb-4 rounded-lg bg-rose-100 px-3 py-2 text-rose-700">
       {{ carritoStore.orderError }}
     </p>
-    <p
+    <div
       v-if="carritoStore.orderSuccess"
-      class="mb-4 rounded-lg bg-emerald-100 px-3 py-2 text-emerald-700"
+      class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 text-emerald-900"
     >
-      {{ carritoStore.orderSuccess }}
-    </p>
+      <p class="font-medium">{{ carritoStore.orderSuccess }}</p>
+      <div v-if="carritoStore.lastFactura" class="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          class="min-h-12 rounded-lg bg-slate-900 px-4 py-2 text-base font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          :disabled="facturaLoading"
+          @click="imprimirFacturaUltimaVenta"
+        >
+          {{ facturaLoading ? 'Preparando…' : 'Imprimir factura' }}
+        </button>
+        <button
+          type="button"
+          class="min-h-12 rounded-lg border border-slate-300 bg-white px-4 py-2 text-base font-medium text-slate-700"
+          :disabled="facturaLoading"
+          @click="carritoStore.descartarUltimaFactura()"
+        >
+          Cerrar
+        </button>
+      </div>
+      <p v-if="facturaError" class="mt-2 text-sm text-rose-700">{{ facturaError }}</p>
+    </div>
 
     <div class="grid gap-4 xl:grid-cols-[1.7fr_1fr_1fr]">
       <ProductList

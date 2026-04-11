@@ -3,6 +3,7 @@ const express = require('express')
 const { z } = require('zod')
 const defaultWoo = require('../services/wooClient')
 const createBarcodeRouter = require('./barcode')
+const { createPrintRouter } = require('./print')
 const { env } = require('../config/env')
 
 const createCustomerSchema = z.object({
@@ -151,6 +152,7 @@ function mapOrdenDetalle(o) {
 function createApiRouter(woo = defaultWoo) {
   const router = express.Router()
 
+  router.use(createPrintRouter(woo))
   router.use('/barcode', createBarcodeRouter(woo))
 
   router.get('/productos', async (_req, res, next) => {

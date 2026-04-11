@@ -1,6 +1,8 @@
 const axios = require('axios')
 const { env } = require('../config/env')
 
+const LIST_TIMEOUT_MS = 120000
+
 const wooClient = axios.create({
   baseURL: `${env.wooUrl.replace(/\/$/, '')}/wp-json/wc/v3`,
   auth: {
@@ -12,12 +14,13 @@ const wooClient = axios.create({
 
 const PER_PAGE = 100
 
-async function fetchAllPages(listPath, extraParams = {}) {
+async function fetchAllPages(listPath, extraParams = {}, axiosOptions = {}) {
   const all = []
   let page = 1
   while (true) {
     const { data } = await wooClient.get(listPath, {
       params: { per_page: PER_PAGE, page, ...extraParams },
+      ...axiosOptions,
     })
     if (!Array.isArray(data) || data.length === 0) break
     all.push(...data)
@@ -28,7 +31,19 @@ async function fetchAllPages(listPath, extraParams = {}) {
 }
 
 async function fetchProducts() {
-  return fetchAllPages('/products', { status: 'publish' })
+  const status =
+    ['any', 'draft', 'pending', 'private', 'publish'].includes(env.wooProductsStatus)
+      ? env.wooProductsStatus
+      : 'any'
+  return fetchAllPages(
+    '/products',
+    {
+      status,
+      orderby: 'id',
+      order: 'asc',
+    },
+    { timeout: LIST_TIMEOUT_MS },
+  )
 }
 
 async function fetchProductById(id) {

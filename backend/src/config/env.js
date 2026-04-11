@@ -7,6 +7,8 @@ const env = {
   wooUrl: process.env.WOO_URL || '',
   wooConsumerKey: process.env.WOO_CONSUMER_KEY || '',
   wooConsumerSecret: process.env.WOO_CONSUMER_SECRET || '',
+  /** Woo REST: any | draft | pending | private | publish (por defecto any = todos los visibles para la API) */
+  wooProductsStatus: (process.env.WOO_PRODUCTS_STATUS || 'any').trim(),
 }
 
 function assertEnv() {
