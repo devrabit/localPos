@@ -8,6 +8,9 @@ import { useProductosStore } from '../stores/productos'
 import { useCarritoStore } from '../stores/carrito'
 import { useClientesStore } from '../stores/clientes'
 import { imprimirFactura } from '../utils/invoicePrint'
+import { useBarcodeScanner, playScanBeep } from '../composables/useBarcodeScanner'
+import { esCodigoEscaneable } from '../utils/scanCode'
+import api from '../services/api'
 
 const productosStore = useProductosStore()
 const carritoStore = useCarritoStore()
@@ -19,6 +22,125 @@ const customerPanelRef = ref(null)
 const variableProduct = ref(null)
 const facturaLoading = ref(false)
 const facturaError = ref('')
+const scanFeedback = ref({ tipo: '', texto: '' })
+const escaneoBusy = ref(false)
+let scanFeedbackTimer = null
+
+function setScanFeedback(tipo, texto) {
+  if (scanFeedbackTimer) clearTimeout(scanFeedbackTimer)
+  scanFeedback.value = { tipo, texto }
+  scanFeedbackTimer = setTimeout(() => {
+    scanFeedback.value = { tipo: '', texto: '' }
+    scanFeedbackTimer = null
+  }, 2800)
+}
+
+function desambiguarCoincidenciasEscaneo(locales, code) {
+  if (locales.length <= 1) return locales
+  const v = String(code || '').trim().toLowerCase()
+  const exactParent = locales.filter((p) => (p.sku || '').trim().toLowerCase() === v)
+  if (exactParent.length === 1) return exactParent
+  return locales
+}
+
+/**
+ * Lector: primero SKU exacto del padre en cache; si no, GET /productos/escaneo (Woo resuelve variaciones).
+ */
+function onBusquedaEnter() {
+  const q = searchInput.value.trim()
+  if (!q) return
+  if (productosStore.coincidenciasBusqueda(q).length > 0) return
+  if (!esCodigoEscaneable(q)) return
+  procesarCodigoEscaneado(q)
+}
+
+async function procesarCodigoEscaneado(code) {
+  if (escaneoBusy.value) return
+  const raw = String(code || '').trim()
+  if (!raw) return
+  escaneoBusy.value = true
+  try {
+    let locales = productosStore.coincidenciasEscaneoLocales(raw)
+    locales = desambiguarCoincidenciasEscaneo(locales, raw)
+
+    if (locales.length === 1) {
+      const p = locales[0]
+      if (p.tipo === 'variable') {
+        variableProduct.value = p
+        playScanBeep()
+        setScanFeedback('ok', `Elije variacion: ${p.nombre}`)
+        return
+      }
+      if (p.stock === 0) {
+        setScanFeedback('error', 'Producto sin stock')
+        return
+      }
+      carritoStore.agregarProducto(p)
+      playScanBeep()
+      setScanFeedback('ok', `Agregado: ${p.nombre}`)
+      return
+    }
+
+    if (locales.length > 1) {
+      searchInput.value = raw
+      productosStore.query = raw
+      setScanFeedback('error', 'Varias coincidencias: elige en la lista')
+      return
+    }
+
+    if (!esCodigoEscaneable(raw)) {
+      setScanFeedback('error', 'Codigo vacio o invalido')
+      return
+    }
+
+    const { data } = await api.get('/productos/escaneo', { params: { q: raw } })
+    if (data.sinStock) {
+      setScanFeedback('error', 'Producto sin stock')
+      return
+    }
+    if (data.resultado === 'simple') {
+      carritoStore.agregarProducto(data.producto)
+      playScanBeep()
+      setScanFeedback('ok', `Agregado: ${data.producto.nombre}`)
+      return
+    }
+    if (data.resultado === 'variacion' && data.variacion) {
+      const v = data.variacion
+      carritoStore.agregarVariacion({
+        productId: v.productId,
+        variationId: v.variationId,
+        nombre: v.nombre,
+        precio: v.precio,
+        stock: v.stock,
+      })
+      playScanBeep()
+      setScanFeedback('ok', `Agregado: ${v.nombre}`)
+      return
+    }
+    if (data.resultado === 'variable_sin_elegir') {
+      variableProduct.value = data.producto
+      playScanBeep()
+      setScanFeedback('ok', `Elije variacion: ${data.producto.nombre}`)
+    }
+  } catch (err) {
+    const aborted =
+      err?.code === 'ECONNABORTED' ||
+      (typeof err?.message === 'string' && err.message.toLowerCase().includes('timeout'))
+    const msg = aborted
+      ? 'La busqueda tardo demasiado (Woo lento). Reintenta en unos segundos.'
+      : err?.response?.status === 404
+        ? 'Codigo no encontrado'
+        : err?.response?.data?.error || 'Error al buscar producto'
+    setScanFeedback('error', msg)
+  } finally {
+    escaneoBusy.value = false
+  }
+}
+
+useBarcodeScanner({
+  onDecoded: procesarCodigoEscaneado,
+  isEnabled: () => !carritoStore.creatingOrder && !escaneoBusy.value,
+})
 
 function onVariacionElegida(payload) {
   carritoStore.agregarVariacion(payload)
@@ -90,10 +212,25 @@ async function imprimirFacturaUltimaVenta() {
       <input
         v-model="searchInput"
         type="text"
-        placeholder="Buscar por nombre o SKU"
+        placeholder="Nombre o SKU padre; codigo de variacion: Enter si no aparece en la lista"
+        data-no-barcode-scan
         class="mt-3 min-h-12 w-full rounded-lg border border-slate-300 px-3 py-3 text-base"
+        @keydown.enter.prevent="onBusquedaEnter"
       />
     </header>
+
+    <p
+      v-if="scanFeedback.texto"
+      class="mb-4 rounded-lg px-3 py-2 text-base font-medium"
+      :class="
+        scanFeedback.tipo === 'ok'
+          ? 'border border-emerald-200 bg-emerald-50 text-emerald-900'
+          : 'border border-rose-200 bg-rose-50 text-rose-900'
+      "
+      role="status"
+    >
+      {{ scanFeedback.texto }}
+    </p>
 
     <p v-if="productosStore.error" class="mb-4 rounded-lg bg-rose-100 px-3 py-2 text-rose-700">
       {{ productosStore.error }}

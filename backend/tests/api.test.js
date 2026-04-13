@@ -47,7 +47,7 @@ test('GET /api/productos incluye tipo y variaciones vacias para simple', async (
   })
 })
 
-test('GET /api/productos variable deja variaciones vacias lazy load', async () => {
+test('GET /api/productos variable deja variaciones vacias (lazy, resuelve escaneo por API)', async () => {
   const mockWoo = {
     fetchProducts: async () => [
       {

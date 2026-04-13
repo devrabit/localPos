@@ -22,10 +22,17 @@ function formatFecha(iso) {
   return s.includes('T') ? s.replace('T', ' ').slice(0, 19) : s
 }
 
+function nombreTiendaFactura() {
+  const raw = import.meta.env.VITE_STORE_NAME
+  const name = raw != null && String(raw).trim() !== '' ? String(raw).trim() : 'Nari Universe'
+  return escapeHtml(name)
+}
+
 /** @param {object} factura modelo del spec (id, fecha, cliente, items, total, metodo_pago) */
 export function buildInvoiceDocumentHtml(factura) {
   const id = escapeHtml(factura.id)
   const fecha = escapeHtml(formatFecha(factura.fecha))
+  const tienda = nombreTiendaFactura()
   const clienteNombre = escapeHtml(factura.cliente?.nombre || '-')
   const documento = escapeHtml(factura.cliente?.documento || '')
   const metodo = escapeHtml(factura.metodo_pago || 'POS')
@@ -49,21 +56,51 @@ export function buildInvoiceDocumentHtml(factura) {
   <meta charset="utf-8"/>
   <title>Factura ${id}</title>
   <style>
-    body { font-family: system-ui, -apple-system, sans-serif; margin: 1rem; color: #111; }
-    h1 { font-size: 1.25rem; margin: 0 0 0.5rem; }
-    h2 { font-size: 1rem; margin: 1rem 0 0.5rem; }
+    html, body {
+      height: auto;
+      min-height: 0;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      padding: 8px 10px 2px 10px;
+      color: #111;
+      box-sizing: border-box;
+    }
+    h1 { font-size: 1.25rem; margin: 0 0 0.35rem; }
+    h2 { font-size: 1rem; margin: 0.6rem 0 0.35rem; }
+    p { margin: 0.15rem 0; }
     table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-    th, td { border-bottom: 1px solid #ddd; padding: 0.4rem 0.35rem; text-align: left; }
+    th, td { border-bottom: 1px solid #ddd; padding: 0.35rem 0.3rem; text-align: left; }
     th { background: #f4f4f5; }
     .num { text-align: right; }
-    .total { margin-top: 1rem; font-size: 1.1rem; font-weight: bold; }
-    @media print { body { margin: 0.5rem; } }
+    .nombre-tienda {
+      text-align: center;
+      font-weight: 600;
+      font-size: 1.05rem;
+      margin: 0.35rem 0 0.45rem;
+      width: 100%;
+    }
+    .total {
+      margin: 0.5rem 0 0 0;
+      padding: 0 0 0 0;
+      font-size: 1.1rem;
+      font-weight: bold;
+    }
+    @media print {
+      @page { margin: 4mm 5mm 2mm 5mm; size: auto; }
+      html, body { margin: 0; padding: 0 4mm 0 4mm; }
+      body { padding-bottom: 0 !important; }
+      .total { margin-bottom: 0 !important; page-break-after: avoid; }
+    }
   </style>
 </head>
 <body>
   <h1>Factura</h1>
   <p><strong>Pedido:</strong> #${id}</p>
   <p><strong>Fecha:</strong> ${fecha}</p>
+  <h4 class="nombre-tienda">${tienda}</h4>
   <p><strong>Cliente:</strong> ${clienteNombre}${documento ? ` · ${documento}` : ''}</p>
   <p><strong>Pago:</strong> ${metodo}</p>
   <h2>Detalle</h2>

@@ -4,6 +4,14 @@ const { z } = require('zod')
 const defaultWoo = require('../services/wooClient')
 const createBarcodeRouter = require('./barcode')
 const { createPrintRouter } = require('./print')
+const {
+  findProductByScanCode,
+  getCachedProductList,
+  invalidateProductosScanCache,
+  normalizeScanCode,
+  skuFromEntity,
+} = require('../utils/productScan')
+const { isVariableProductType } = require('../utils/wooProductType')
 const { env } = require('../config/env')
 
 const createCustomerSchema = z.object({
@@ -56,6 +64,7 @@ const createOrderSchema = z.object({
 })
 
 function stockFromWooEntity(entity) {
+  if (!entity || typeof entity !== 'object') return 0
   const unlimited =
     entity.manage_stock === false &&
     (entity.stock_quantity === null || entity.stock_quantity === undefined)
@@ -78,20 +87,20 @@ function mapVariationToDto(v, parentName, parentId) {
     nombre: label ? `${parentName} - ${label}` : `${parentName} (#${v.id})`,
     precio: Number(v.price || v.regular_price || 0),
     stock: stockFromWooEntity(v),
-    sku: v.sku || '',
+    sku: skuFromEntity(v),
     atributos,
   }
 }
 
 function mapProductDto(p, variaciones = []) {
-  const tipo = p.type === 'variable' ? 'variable' : 'simple'
+  const tipo = isVariableProductType(p.type) ? 'variable' : 'simple'
   const dto = {
     id: p.id,
     nombre: p.name,
     tipo,
     precio: Number(p.price || 0),
     stock: stockFromWooEntity(p),
-    sku: p.sku || '',
+    sku: skuFromEntity(p),
     variaciones,
   }
   if (tipo === 'variable' && variaciones.length) {
@@ -158,8 +167,45 @@ function createApiRouter(woo = defaultWoo) {
   router.get('/productos', async (_req, res, next) => {
     try {
       const products = await woo.fetchProducts()
-      const out = products.map((p) => mapProductDto(p, []))
-      res.json(out)
+      res.json(products.map((p) => mapProductDto(p, [])))
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  /** Resolucion tipo Woo: SKU simple, SKU variacion, SKU padre variable (usa datos reales de Woo). */
+  router.get('/productos/escaneo', async (req, res, next) => {
+    try {
+      const raw = (req.query.q ?? req.query.codigo ?? '').toString()
+      const q = normalizeScanCode(raw)
+      if (!q) {
+        return res.status(400).json({ error: 'Codigo vacio o invalido' })
+      }
+      const products = await getCachedProductList(woo)
+      const hit = await findProductByScanCode(products, q, (id) => woo.fetchProductVariations(id))
+      if (!hit) {
+        return res.status(404).json({ error: 'Codigo no encontrado' })
+      }
+      const { tipo, producto: pw, variacion: vw } = hit
+      const dtoP = mapProductDto(pw, [])
+      let dtoV = null
+      if (vw) {
+        dtoV = mapVariationToDto(vw, pw.name, pw.id)
+      }
+      const sinStock =
+        tipo === 'simple'
+          ? dtoP.stock === 0
+          : tipo === 'variacion'
+            ? dtoV && dtoV.stock === 0
+            : false
+      const resultado =
+        tipo === 'simple' ? 'simple' : tipo === 'variacion' ? 'variacion' : 'variable_sin_elegir'
+      res.json({
+        resultado,
+        producto: dtoP,
+        variacion: dtoV,
+        sinStock,
+      })
     } catch (error) {
       next(error)
     }
@@ -172,7 +218,7 @@ function createApiRouter(woo = defaultWoo) {
     }
     try {
       const parent = await woo.fetchProductById(productId)
-      if (!parent || parent.type !== 'variable') {
+      if (!parent || !isVariableProductType(parent.type)) {
         return res.json({ variaciones: [] })
       }
       let raw = []
@@ -350,6 +396,7 @@ function createApiRouter(woo = defaultWoo) {
       }
 
       const order = await woo.createOrder(orderBody)
+      invalidateProductosScanCache()
 
       res.status(201).json({
         orderId: order.id,

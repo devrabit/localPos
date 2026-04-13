@@ -60,7 +60,7 @@ defineExpose({ resetCreacionForm })
 </script>
 
 <template>
-  <section class="rounded-xl bg-white p-4 shadow-sm">
+  <section class="rounded-xl bg-white p-4 shadow-sm" data-no-barcode-scan>
     <h2 class="mb-1 text-xl font-semibold text-slate-900">Cliente</h2>
     <p class="mb-3 text-sm text-slate-500">Opcional: puedes vender sin seleccionar cliente (mostrador).</p>
     <input

@@ -52,7 +52,7 @@ async function fetchProductById(id) {
 }
 
 async function fetchProductVariations(productId) {
-  return fetchAllPages(`/products/${productId}/variations`)
+  return fetchAllPages(`/products/${productId}/variations`, {}, { timeout: LIST_TIMEOUT_MS })
 }
 
 async function fetchCustomers() {

@@ -1,0 +1,307 @@
+# 📦 Módulo: Lectura de Código de Barras y Agregado Automático al Carrito (MVP)
+
+## 1. 🎯 Objetivo
+
+Permitir que el sistema detecte códigos de barras usando un lector (hardware), busque el producto (incluyendo variaciones) y lo agregue automáticamente al carrito de ventas.
+
+---
+
+## 2. 🧱 Alcance
+
+Incluye:
+
+* Integración con lector de código de barras (USB / teclado)
+* Captura automática del código
+* Búsqueda de producto en catálogo
+* Soporte para variaciones
+* Agregado automático al carrito
+
+No incluye:
+
+* Escaneo por imagen avanzado (IA)
+* Reconocimiento offline complejo
+
+---
+
+## 3. 🧠 Tipos de lector soportados
+
+| Tipo               | Descripción                |
+| ------------------ | -------------------------- |
+| USB (modo teclado) | Envía el código como texto |
+| Bluetooth          | Igual que teclado          |
+
+
+👉 MVP: **USB / teclado (más común y simple)**
+
+---
+
+## 4. ⚙️ Flujo funcional
+
+```text id="2y9c9n"
+Usuario escanea código de barras
+        ↓
+El lector envía texto (ej: 123456789 + Enter)
+        ↓
+Sistema captura el input
+        ↓
+Busca producto en catálogo
+(incluye variaciones)
+        ↓
+Si encuentra:
+    → Agrega al carrito
+Si no:
+    → Muestra error
+```
+
+---
+
+## 5. 📊 Modelo de datos
+
+### Producto
+
+```json id="6nprxg"
+{
+  "id": "string",
+  "name": "string",
+  "sku": "string",
+  "barcode": "string",
+  "type": "simple | variable",
+  "variations": []
+}
+```
+
+---
+
+### Variación
+
+```json id="gk42ya"
+{
+  "id": "string",
+  "sku": "string",
+  "barcode": "string",
+  "attributes": {
+    "talla": "M",
+    "color": "Rojo"
+  },
+  "price": "number",
+  "stock": "number"
+}
+```
+
+---
+
+## 6. 🔍 Lógica de búsqueda
+
+### Orden de búsqueda:
+
+1. Buscar por:
+
+   * barcode en producto
+2. Si no existe:
+
+   * Buscar en variaciones
+3. Si no existe:
+
+   * Buscar por SKU (fallback)
+
+---
+
+### Ejemplo de lógica:
+
+```javascript id="0l7c41"
+function buscarProducto(codigo) {
+  // 1. Producto simple
+  let producto = productos.find(p => p.barcode === codigo);
+
+  if (producto) return producto;
+
+  // 2. Variaciones
+  for (const p of productos) {
+    const variacion = p.variations?.find(v => v.barcode === codigo);
+    if (variacion) {
+      return { ...p, variacion };
+    }
+  }
+
+  // 3. SKU fallback
+  producto = productos.find(p => p.sku === codigo);
+
+  return producto || null;
+}
+```
+
+---
+
+## 7. 🛒 Agregar al carrito
+
+### Comportamiento:
+
+* Si producto existe:
+
+  * Agregar con cantidad = 1
+* Si ya existe en carrito:
+
+  * Incrementar cantidad
+
+---
+
+### Ejemplo:
+
+```javascript id="4m9n0p"
+function agregarAlCarrito(item) {
+  const existente = carrito.find(i => i.id === item.id);
+
+  if (existente) {
+    existente.cantidad += 1;
+  } else {
+    carrito.push({ ...item, cantidad: 1 });
+  }
+}
+```
+
+---
+
+## 8. 🧩 Captura de input (clave)
+
+### Estrategia MVP (lector tipo teclado)
+
+```javascript id="5x4p7a"
+let buffer = '';
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    procesarCodigo(buffer);
+    buffer = '';
+  } else {
+    buffer += e.key;
+  }
+});
+```
+
+---
+
+## 9. ⚡ Optimización
+
+* Usar diccionario:
+
+```javascript id="w2k9da"
+const index = {
+  "123456": producto
+};
+```
+
+👉 Evita búsquedas O(n)
+
+---
+
+## 10. ❌ Manejo de errores
+
+| Error                | Acción         |
+| -------------------- | -------------- |
+| Código no encontrado | Mostrar alerta |
+| Producto sin stock   | Notificar      |
+| Código inválido      | Ignorar        |
+
+---
+
+## 11. 🔐 Seguridad
+
+* Sanitizar input
+* Evitar ejecución de scripts
+* Validar longitud del código
+
+---
+
+## 12. 🧪 Casos de uso
+
+### Caso 1: Producto simple
+
+1. Escaneo
+2. Se encuentra producto
+3. Se agrega al carrito
+
+---
+
+### Caso 2: Variación
+
+1. Escaneo
+2. Se encuentra variación específica
+3. Se agrega con atributos
+
+---
+
+### Caso 3: Código no existente
+
+1. Escaneo
+2. No se encuentra
+3. Mostrar error
+
+---
+
+## 13. 🖥️ UI/UX
+
+* Input oculto o global
+* Sonido “beep” al escanear
+* Feedback visual:
+
+  * ✔️ agregado
+  * ❌ error
+
+---
+
+## 14. 🔌 Integración con WooCommerce
+
+* Usar campos:
+
+  * SKU
+  * meta_data (barcode)
+
+* Endpoint:
+
+  * GET /products
+  * GET /products/{id}/variations
+
+---
+
+## 15. 🚀 Roadmap
+
+* Soporte offline
+* Autocompletado manual
+* Historial de escaneos
+
+---
+
+## 16. 🧠 Buenas prácticas
+
+* Usar códigos únicos
+* Evitar duplicados entre variaciones
+* Indexar datos en memoria
+* Pre-cargar catálogo
+
+---
+
+## 17. 🧩 Integración con POS
+
+Este módulo debe:
+
+* Ejecutarse globalmente
+* No depender de foco en inputs
+* Ser rápido (<100ms)
+
+---
+
+## 18. 🔥 Consejo PRO
+
+👉 Los lectores USB funcionan como teclado
+
+Por eso:
+
+* No necesitas SDK
+* Solo capturar eventos
+
+Pero cuidado:
+
+* Evitar conflictos con inputs activos
+* Usar buffer inteligente
+
+---

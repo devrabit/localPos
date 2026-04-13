@@ -17,15 +17,20 @@ const error = ref('')
 const loadedVariaciones = ref([])
 
 async function cargarVariaciones() {
-  loading.value = true
   error.value = ''
   selectedId.value = null
-  loadedVariaciones.value = []
+  const cached = Array.isArray(props.product.variaciones) ? props.product.variaciones : []
+  loadedVariaciones.value = cached.length ? [...cached] : []
+  loading.value = !loadedVariaciones.value.length
+  const pickFirst = () => {
+    const first = loadedVariaciones.value.find((x) => x.stock !== 0)
+    if (first) selectedId.value = first.variationId
+  }
+  if (loadedVariaciones.value.length) pickFirst()
   try {
     const { data } = await api.get(`/productos/${props.product.id}/variaciones`)
     loadedVariaciones.value = data.variaciones || []
-    const first = loadedVariaciones.value.find((v) => v.stock !== 0)
-    if (first) selectedId.value = first.variationId
+    pickFirst()
   } catch (e) {
     error.value = e?.response?.data?.error || 'Error cargando variaciones'
   } finally {
