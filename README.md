@@ -42,7 +42,7 @@ El frontend consume `/api` y Vite hace proxy al backend local.
 - Output directory: `dist`
 - Variables:
   - `VITE_STORE_NAME=Nari Universe`
-  - `VITE_API_BASE_URL=https://tu-dominio.com/api` (o dominio del backend)
+  - `VITE_API_BASE_URL=https://wheat-raven-739083.hostingersite.com/api` (o dominio del backend)
 
 ### Backend (Node)
 
@@ -53,7 +53,7 @@ El frontend consume `/api` y Vite hace proxy al backend local.
   - `WOO_CONSUMER_KEY=...`
   - `WOO_CONSUMER_SECRET=...`
 - Variable recomendada:
-  - `CORS_ORIGIN=https://tu-frontend.com`
+  - `CORS_ORIGIN=https://wheat-raven-739083.hostingersite.com`
 
 ## Tests
 
