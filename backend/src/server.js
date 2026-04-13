@@ -8,7 +8,11 @@ const { assertEnv, env } = require('./config/env')
 
 const app = express()
 
-app.use(cors())
+app.use(
+  cors({
+    origin: env.corsOrigin === '*' ? true : env.corsOrigin,
+  }),
+)
 app.use(express.json({ limit: '2mb' }))
 
 app.get('/health', (_req, res) => {
