@@ -37,3 +37,23 @@ El frontend consume `/api` y Vite hace proxy al backend local.
 
 - Backend: `cd backend && npm test`
 - Frontend: `cd frontend && npm test`
+
+## Ejecutable para Windows (.exe)
+
+Se agrego una app de escritorio en `desktop/` con Electron que:
+
+- levanta el backend local en `http://127.0.0.1:3001`
+- carga el frontend compilado de `frontend/dist`
+- empaqueta instalador `.exe` con `electron-builder`
+
+Pasos:
+
+1. Instalar dependencias en cada modulo:
+   - `cd backend && npm install`
+   - `cd ../frontend && npm install`
+   - `cd ../desktop && npm install`
+2. Asegurar credenciales en `backend/.env`.
+3. Generar instalador Windows:
+   - `npm run pack:win`
+
+Salida esperada: archivos en `desktop/dist/` (instalador NSIS `.exe`).

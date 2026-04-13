@@ -139,7 +139,9 @@ export function detalleHistorialToFactura(detalle) {
  * En dev, Vite proxy envía a backend. Si falla, la impresión por navegador sigue.
  */
 export async function notifyPrintService(html) {
-  const res = await fetch('/print', {
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
+  const printUrl = baseUrl ? `${String(baseUrl).replace(/\/$/, '')}/print` : '/print'
+  const res = await fetch(printUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ content: html }),

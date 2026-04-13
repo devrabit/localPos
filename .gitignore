@@ -4,6 +4,7 @@ node_modules/
 # Builds
 frontend/dist/
 backend/dist/
+desktop/dist/
 
 # Secrets (usar .env.example como plantilla)
 backend/.env

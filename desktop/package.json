@@ -1,0 +1,54 @@
+{
+  "name": "naripos-desktop",
+  "version": "1.0.0",
+  "description": "Nari POS desktop app",
+  "main": "main.cjs",
+  "scripts": {
+    "dev": "electron .",
+    "build:frontend": "cd ../frontend && cross-env VITE_DESKTOP=1 VITE_API_BASE_URL=http://127.0.0.1:3001 npm run build",
+    "pack:win": "npm run build:frontend && electron-builder --win nsis --x64",
+    "pack:win:arm64": "npm run build:frontend && electron-builder --win nsis --arm64"
+  },
+  "dependencies": {
+    "axios": "^1.14.0",
+    "bwip-js": "^4.9.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "cross-env": "^10.1.0",
+    "electron": "^36.3.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.nariuniverse.naripos",
+    "productName": "NariPOS",
+    "files": [
+      "main.cjs",
+      "preload.cjs"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "extraResources": [
+      {
+        "from": "../backend",
+        "to": "backend",
+        "filter": [
+          "src/**/*",
+          ".env",
+          ".env.example"
+        ]
+      },
+      {
+        "from": "../frontend/dist",
+        "to": "frontend-dist"
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    }
+  }
+}
