@@ -1,5 +1,7 @@
 const express = require('express')
 const cors = require('cors')
+const path = require('path')
+const fs = require('fs')
 const createApiRouter = require('./routes/api')
 const { postPrintHandler } = require('./routes/print')
 const wooClient = require('./services/wooClient')
@@ -8,7 +10,11 @@ const { assertEnv, env } = require('./config/env')
 
 const app = express()
 
-app.use(cors())
+app.use(
+  cors({
+    origin: env.corsOrigin === '*' ? true : env.corsOrigin,
+  }),
+)
 app.use(express.json({ limit: '2mb' }))
 
 app.get('/health', (_req, res) => {
@@ -18,6 +24,26 @@ app.get('/health', (_req, res) => {
 app.post('/print', postPrintHandler)
 
 app.use('/api', createApiRouter(wooClient))
+
+/**
+ * Deploy unico (Hostinger/root bloqueado): servir frontend compilado.
+ * Busca dist dentro de backend y tambien en ../dist (build desde root).
+ */
+const distCandidates = [
+  path.resolve(process.cwd(), 'dist'),
+  path.resolve(process.cwd(), '../dist'),
+]
+const frontendDist = distCandidates.find((p) => fs.existsSync(path.join(p, 'index.html')))
+
+if (frontendDist) {
+  app.use(express.static(frontendDist))
+  app.get('/{*path}', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path === '/health' || req.path === '/print') {
+      return next()
+    }
+    return res.sendFile(path.join(frontendDist, 'index.html'))
+  })
+}
 
 app.use((error, _req, res, _next) => {
   if (error?.name === 'ZodError') {
