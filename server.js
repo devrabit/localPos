@@ -3,7 +3,33 @@ const fs = require('fs')
 const { spawnSync } = require('child_process')
 
 function hasBuiltFrontend(dir) {
-  return fs.existsSync(path.join(dir, 'index.html')) && fs.existsSync(path.join(dir, 'assets'))
+  try {
+    const indexPath = path.join(dir, 'index.html')
+    const assetsDir = path.join(dir, 'assets')
+    if (!fs.existsSync(indexPath) || !fs.existsSync(assetsDir) || !fs.statSync(assetsDir).isDirectory()) {
+      return false
+    }
+
+    const html = fs.readFileSync(indexPath, 'utf8')
+    const assetRefs = new Set()
+    const refRegex = /(?:src|href)="\/assets\/([^"]+)"/g
+    let match = refRegex.exec(html)
+    while (match) {
+      assetRefs.add(match[1])
+      match = refRegex.exec(html)
+    }
+
+    if (assetRefs.size === 0) {
+      return fs.readdirSync(assetsDir).length > 0
+    }
+
+    for (const relFile of assetRefs) {
+      if (!fs.existsSync(path.join(assetsDir, relFile))) return false
+    }
+    return true
+  } catch {
+    return false
+  }
 }
 
 function ensureRootDist() {
