@@ -41,6 +41,10 @@ function labelEstado(s) {
         <p class="text-xs uppercase text-slate-500">Fecha</p>
         <p class="text-sm font-medium text-slate-800">{{ venta.fecha }}</p>
       </div>
+      <div>
+        <p class="text-xs uppercase text-slate-500">Pago</p>
+        <p class="text-sm font-medium text-slate-800">{{ venta.metodoPago || '-' }}</p>
+      </div>
       <span
         class="inline-flex rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700"
       >

@@ -61,6 +61,7 @@ const createOrderSchema = z.object({
       }),
     )
     .min(1),
+  paymentMethod: z.enum(['EFECTIVO', 'TRANSFERENCIA']),
 })
 
 function stockFromWooEntity(entity) {
@@ -128,12 +129,14 @@ const ordenesQuerySchema = z.object({
 })
 
 function mapOrdenLista(o) {
+  const metodoPago = o.payment_method_title || o.payment_method || '-'
   return {
     id: o.id,
     cliente: `${o.billing?.first_name || ''} ${o.billing?.last_name || ''}`.trim() || '-',
     total: Number(o.total || 0),
     estado: o.status,
     fecha: (o.date_created || '').split('T')[0] || '',
+    metodoPago,
   }
 }
 
@@ -372,8 +375,9 @@ function createApiRouter(woo = defaultWoo) {
       const orderBody = {
         status: 'completed',
         set_paid: true,
-        payment_method: 'cod',
-        payment_method_title: 'POS',
+        payment_method: payload.paymentMethod === 'EFECTIVO' ? 'cod' : 'bacs',
+        payment_method_title:
+          payload.paymentMethod === 'EFECTIVO' ? 'Pago en efectivo' : 'Transferencia virtual',
         billing: {
           first_name: firstName,
           last_name: lastName,

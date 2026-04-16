@@ -11,6 +11,7 @@ import { imprimirFactura } from '../utils/invoicePrint'
 import { useBarcodeScanner, playScanBeep } from '../composables/useBarcodeScanner'
 import { esCodigoEscaneable } from '../utils/scanCode'
 import api from '../services/api'
+import { PAYMENT_METHODS } from '../constants/paymentMethods'
 
 const productosStore = useProductosStore()
 const carritoStore = useCarritoStore()
@@ -24,6 +25,9 @@ const facturaLoading = ref(false)
 const facturaError = ref('')
 const scanFeedback = ref({ tipo: '', texto: '' })
 const escaneoBusy = ref(false)
+const escaneoRemotoLoading = ref(false)
+const selectedPaymentMethod = ref('')
+const paymentError = ref('')
 let scanFeedbackTimer = null
 
 function setScanFeedback(tipo, texto) {
@@ -93,7 +97,9 @@ async function procesarCodigoEscaneado(code) {
       return
     }
 
+    escaneoRemotoLoading.value = true
     const { data } = await api.get('/productos/escaneo', { params: { q: raw } })
+    escaneoRemotoLoading.value = false
     if (data.sinStock) {
       setScanFeedback('error', 'Producto sin stock')
       return
@@ -123,6 +129,7 @@ async function procesarCodigoEscaneado(code) {
       setScanFeedback('ok', `Elije variacion: ${data.producto.nombre}`)
     }
   } catch (err) {
+    escaneoRemotoLoading.value = false
     const aborted =
       err?.code === 'ECONNABORTED' ||
       (typeof err?.message === 'string' && err.message.toLowerCase().includes('timeout'))
@@ -163,7 +170,18 @@ onMounted(async () => {
 })
 
 async function confirmarVenta() {
-  await carritoStore.crearOrden(clientesStore.selectedCliente)
+  if (!Object.values(PAYMENT_METHODS).includes(selectedPaymentMethod.value)) {
+    paymentError.value = 'Debes seleccionar un metodo de pago'
+    return
+  }
+  paymentError.value = ''
+  await carritoStore.crearOrden(clientesStore.selectedCliente, selectedPaymentMethod.value)
+  selectedPaymentMethod.value = ''
+}
+
+function onPaymentMethodSelected(value) {
+  selectedPaymentMethod.value = value
+  paymentError.value = ''
 }
 
 async function crearCliente(payload) {
@@ -231,6 +249,13 @@ async function imprimirFacturaUltimaVenta() {
     >
       {{ scanFeedback.texto }}
     </p>
+    <p
+      v-if="escaneoRemotoLoading"
+      class="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-base font-medium text-sky-900"
+      role="status"
+    >
+      Buscando producto por codigo...
+    </p>
 
     <p v-if="productosStore.error" class="mb-4 rounded-lg bg-rose-100 px-3 py-2 text-rose-700">
       {{ productosStore.error }}
@@ -281,9 +306,12 @@ async function imprimirFacturaUltimaVenta() {
         :items="carritoStore.items"
         :total="carritoStore.total"
         :checkout-loading="carritoStore.creatingOrder"
+        :payment-method="selectedPaymentMethod"
+        :payment-error="paymentError"
         @inc="carritoStore.incrementar"
         @dec="carritoStore.decrementar"
         @remove="carritoStore.eliminar"
+        @update:payment-method="onPaymentMethodSelected"
         @checkout="confirmarVenta"
       />
       <CustomerPanel

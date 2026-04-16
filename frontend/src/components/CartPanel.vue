@@ -1,4 +1,6 @@
 <script setup>
+import { PAYMENT_METHOD_OPTIONS } from '../constants/paymentMethods'
+
 defineProps({
   items: {
     type: Array,
@@ -12,9 +14,17 @@ defineProps({
     type: Boolean,
     default: false,
   },
+  paymentMethod: {
+    type: String,
+    default: '',
+  },
+  paymentError: {
+    type: String,
+    default: '',
+  },
 })
 
-const emit = defineEmits(['inc', 'dec', 'remove', 'checkout'])
+const emit = defineEmits(['inc', 'dec', 'remove', 'checkout', 'update:paymentMethod'])
 </script>
 
 <template>
@@ -61,10 +71,30 @@ const emit = defineEmits(['inc', 'dec', 'remove', 'checkout'])
 
     <div class="mt-4 border-t border-slate-200 pt-3">
       <p class="text-lg font-bold text-slate-900">Total: $ {{ total.toFixed(2) }}</p>
+      <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <p class="mb-2 text-sm font-semibold text-slate-700">Metodo de pago (obligatorio)</p>
+        <div class="grid gap-2">
+          <label
+            v-for="opt in PAYMENT_METHOD_OPTIONS"
+            :key="opt.value"
+            class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2"
+          >
+            <input
+              :checked="paymentMethod === opt.value"
+              type="radio"
+              name="payment-method"
+              class="h-4 w-4"
+              @change="emit('update:paymentMethod', opt.value)"
+            />
+            <span class="text-sm font-medium text-slate-800">{{ opt.label }}</span>
+          </label>
+        </div>
+        <p v-if="paymentError" class="mt-2 text-sm text-rose-700">{{ paymentError }}</p>
+      </div>
       <button
         type="button"
         class="mt-3 min-h-14 w-full rounded-lg bg-indigo-600 px-4 py-4 text-lg font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-        :disabled="!items.length || checkoutLoading"
+        :disabled="!items.length || checkoutLoading || !paymentMethod"
         @click="emit('checkout')"
       >
         {{ checkoutLoading ? 'Enviando...' : 'Confirmar venta' }}

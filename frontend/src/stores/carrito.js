@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import api from '../services/api'
+import { PAYMENT_METHODS, paymentMethodLabel } from '../constants/paymentMethods'
 
 export function lineKeyFor(productId, variationId) {
   return variationId != null && variationId !== '' ? `v-${variationId}` : `p-${productId}`
@@ -112,12 +113,16 @@ export const useCarritoStore = defineStore('carrito', () => {
     items.value.reduce((acc, item) => acc + item.precio * item.cantidad, 0),
   )
 
-  async function crearOrden(cliente) {
+  async function crearOrden(cliente, paymentMethod) {
     creatingOrder.value = true
     orderError.value = ''
     orderSuccess.value = ''
     try {
+      if (!Object.values(PAYMENT_METHODS).includes(paymentMethod)) {
+        throw new Error('Debes seleccionar un metodo de pago')
+      }
       const payload = {
+        paymentMethod,
         items: items.value.map(({ productId, variationId, cantidad }) => ({
           productId,
           ...(variationId != null && variationId !== '' ? { variationId } : {}),
@@ -145,6 +150,7 @@ export const useCarritoStore = defineStore('carrito', () => {
       const totalNum = items.value.reduce((acc, i) => acc + i.precio * i.cantidad, 0)
       const cli = cliente || {}
       const { data } = await api.post('/orden', payload)
+      const metodoPago = paymentMethodLabel(paymentMethod)
       const nombreCliente =
         cli.nombre && String(cli.nombre).trim()
           ? String(cli.nombre).trim()
@@ -160,13 +166,14 @@ export const useCarritoStore = defineStore('carrito', () => {
         },
         items: itemsSnapshot,
         total: totalNum,
-        metodo_pago: 'POS',
+        metodo_pago: metodoPago || 'POS',
       }
       orderSuccess.value = `Orden #${data.orderId} creada correctamente`
       limpiar()
       return data
     } catch (err) {
-      orderError.value = err?.response?.data?.error || 'No se pudo crear la orden'
+      orderError.value =
+        err?.response?.data?.error || err?.message || 'No se pudo crear la orden'
       throw err
     } finally {
       creatingOrder.value = false
