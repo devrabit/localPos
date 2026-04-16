@@ -46,7 +46,8 @@ El frontend consume `/api` y Vite hace proxy al backend local.
 
 ### Backend (Node)
 
-- Start command: `npm start`
+- **Raiz de la aplicacion en Hostinger:** la carpeta **raiz del repositorio** (donde esta `server.js` y `package.json` con `"start": "node server.js"`), no solo `backend/`. Si el panel usa `backend` como raiz, se ejecuta otro `npm start` sin copiar el frontend y reaparecen 404 en `/assets/` y errores de MIME.
+- Start command: `npm start` (desde esa raiz)
 - Variables minimas:
   - `PORT=3001`
   - `WOO_URL=...`
