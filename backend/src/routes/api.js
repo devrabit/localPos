@@ -44,7 +44,13 @@ function randomWooPassword() {
   return crypto.randomBytes(18).toString('base64url')
 }
 
-const createOrderSchema = z.object({
+const paymentMethodEnum = z.enum(['EFECTIVO', 'TRANSFERENCIA'])
+
+const createOrderSchema = z
+  .object({
+    // Compatibilidad: aceptar snake_case y camelCase durante la transicion.
+    payment_method: paymentMethodEnum.optional(),
+    paymentMethod: paymentMethodEnum.optional(),
   cliente: z
     .object({
       id: z.number().int().positive().optional(),
@@ -52,16 +58,25 @@ const createOrderSchema = z.object({
       telefono: z.string().optional().default(''),
     })
     .optional(),
-  items: z
-    .array(
-      z.object({
-        productId: z.number().int().positive(),
-        variationId: z.number().int().positive().optional(),
-        cantidad: z.number().int().positive(),
-      }),
-    )
-    .min(1),
-})
+    items: z
+      .array(
+        z.object({
+          productId: z.number().int().positive(),
+          variationId: z.number().int().positive().optional(),
+          cantidad: z.number().int().positive(),
+        }),
+      )
+      .min(1),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.payment_method && !data.paymentMethod) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['payment_method'],
+        message: 'Payment method required',
+      })
+    }
+  })
 
 function stockFromWooEntity(entity) {
   if (!entity || typeof entity !== 'object') return 0
@@ -355,6 +370,7 @@ function createApiRouter(woo = defaultWoo) {
       const payload = createOrderSchema.parse(req.body)
 
       const c = payload.cliente
+      const selectedPaymentMethod = payload.payment_method || payload.paymentMethod
       const phone = c?.telefono || ''
       const nombre = (c?.nombre || '').trim()
 
@@ -372,8 +388,9 @@ function createApiRouter(woo = defaultWoo) {
       const orderBody = {
         status: 'completed',
         set_paid: true,
-        payment_method: 'cod',
-        payment_method_title: 'POS',
+        payment_method: selectedPaymentMethod === 'EFECTIVO' ? 'cod' : 'bacs',
+        payment_method_title:
+          selectedPaymentMethod === 'EFECTIVO' ? 'Pago en efectivo' : 'Transferencia virtual',
         billing: {
           first_name: firstName,
           last_name: lastName,

@@ -1,4 +1,6 @@
 <script setup>
+import { PAYMENT_OPTIONS } from '../stores/carrito'
+
 defineProps({
   items: {
     type: Array,
@@ -12,9 +14,13 @@ defineProps({
     type: Boolean,
     default: false,
   },
+  paymentMethod: {
+    type: String,
+    default: '',
+  },
 })
 
-const emit = defineEmits(['inc', 'dec', 'remove', 'checkout'])
+const emit = defineEmits(['inc', 'dec', 'remove', 'checkout', 'update:paymentMethod'])
 </script>
 
 <template>
@@ -61,10 +67,29 @@ const emit = defineEmits(['inc', 'dec', 'remove', 'checkout'])
 
     <div class="mt-4 border-t border-slate-200 pt-3">
       <p class="text-lg font-bold text-slate-900">Total: $ {{ total.toFixed(2) }}</p>
+      <fieldset class="mt-3">
+        <legend class="mb-2 text-sm font-semibold text-slate-800">Metodo de pago *</legend>
+        <div class="grid gap-2">
+          <label
+            v-for="option in PAYMENT_OPTIONS"
+            :key="option.value"
+            class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-2"
+          >
+            <input
+              :checked="paymentMethod === option.value"
+              type="radio"
+              name="payment-method"
+              :value="option.value"
+              @change="emit('update:paymentMethod', option.value)"
+            />
+            <span class="text-sm text-slate-800">{{ option.label }}</span>
+          </label>
+        </div>
+      </fieldset>
       <button
         type="button"
         class="mt-3 min-h-14 w-full rounded-lg bg-indigo-600 px-4 py-4 text-lg font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-        :disabled="!items.length || checkoutLoading"
+        :disabled="!items.length || checkoutLoading || !paymentMethod"
         @click="emit('checkout')"
       >
         {{ checkoutLoading ? 'Enviando...' : 'Confirmar venta' }}

@@ -24,6 +24,7 @@ const facturaLoading = ref(false)
 const facturaError = ref('')
 const scanFeedback = ref({ tipo: '', texto: '' })
 const escaneoBusy = ref(false)
+const escaneoApiLoading = ref(false)
 let scanFeedbackTimer = null
 
 function setScanFeedback(tipo, texto) {
@@ -93,6 +94,7 @@ async function procesarCodigoEscaneado(code) {
       return
     }
 
+    escaneoApiLoading.value = true
     const { data } = await api.get('/productos/escaneo', { params: { q: raw } })
     if (data.sinStock) {
       setScanFeedback('error', 'Producto sin stock')
@@ -133,6 +135,7 @@ async function procesarCodigoEscaneado(code) {
         : err?.response?.data?.error || 'Error al buscar producto'
     setScanFeedback('error', msg)
   } finally {
+    escaneoApiLoading.value = false
     escaneoBusy.value = false
   }
 }
@@ -163,7 +166,11 @@ onMounted(async () => {
 })
 
 async function confirmarVenta() {
-  await carritoStore.crearOrden(clientesStore.selectedCliente)
+  try {
+    await carritoStore.crearOrden(clientesStore.selectedCliente)
+  } catch {
+    // El store ya expone el mensaje de error para la UI.
+  }
 }
 
 async function crearCliente(payload) {
@@ -217,6 +224,9 @@ async function imprimirFacturaUltimaVenta() {
         class="mt-3 min-h-12 w-full rounded-lg border border-slate-300 px-3 py-3 text-base"
         @keydown.enter.prevent="onBusquedaEnter"
       />
+      <p v-if="escaneoApiLoading" class="mt-2 text-sm font-medium text-slate-600" role="status">
+        Buscando codigo...
+      </p>
     </header>
 
     <p
@@ -281,10 +291,12 @@ async function imprimirFacturaUltimaVenta() {
         :items="carritoStore.items"
         :total="carritoStore.total"
         :checkout-loading="carritoStore.creatingOrder"
+        :payment-method="carritoStore.paymentMethod"
         @inc="carritoStore.incrementar"
         @dec="carritoStore.decrementar"
         @remove="carritoStore.eliminar"
         @checkout="confirmarVenta"
+        @update:payment-method="(value) => (carritoStore.paymentMethod = value)"
       />
       <CustomerPanel
         ref="customerPanelRef"

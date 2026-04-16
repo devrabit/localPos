@@ -6,11 +6,26 @@ export function lineKeyFor(productId, variationId) {
   return variationId != null && variationId !== '' ? `v-${variationId}` : `p-${productId}`
 }
 
+export const PAYMENT_METHODS = {
+  CASH: 'EFECTIVO',
+  TRANSFER: 'TRANSFERENCIA',
+}
+
+export const PAYMENT_OPTIONS = [
+  { value: PAYMENT_METHODS.CASH, label: 'Pago en efectivo' },
+  { value: PAYMENT_METHODS.TRANSFER, label: 'Transferencia virtual' },
+]
+
+export function paymentLabelFromValue(value) {
+  return PAYMENT_OPTIONS.find((p) => p.value === value)?.label || ''
+}
+
 export const useCarritoStore = defineStore('carrito', () => {
   const items = ref([])
   const creatingOrder = ref(false)
   const orderError = ref('')
   const orderSuccess = ref('')
+  const paymentMethod = ref('')
   /** Ultima venta confirmada para imprimir factura (spec ImpresionDeFactura) */
   const lastFactura = ref(null)
 
@@ -117,7 +132,12 @@ export const useCarritoStore = defineStore('carrito', () => {
     orderError.value = ''
     orderSuccess.value = ''
     try {
+      if (!paymentMethod.value) {
+        throw new Error('Debes seleccionar un método de pago')
+      }
       const payload = {
+        payment_method: paymentMethod.value,
+        paymentMethod: paymentMethod.value,
         items: items.value.map(({ productId, variationId, cantidad }) => ({
           productId,
           ...(variationId != null && variationId !== '' ? { variationId } : {}),
@@ -160,13 +180,14 @@ export const useCarritoStore = defineStore('carrito', () => {
         },
         items: itemsSnapshot,
         total: totalNum,
-        metodo_pago: 'POS',
+        metodo_pago: paymentLabelFromValue(paymentMethod.value) || paymentMethod.value,
       }
       orderSuccess.value = `Orden #${data.orderId} creada correctamente`
       limpiar()
+      paymentMethod.value = ''
       return data
     } catch (err) {
-      orderError.value = err?.response?.data?.error || 'No se pudo crear la orden'
+      orderError.value = err?.response?.data?.error || err?.message || 'No se pudo crear la orden'
       throw err
     } finally {
       creatingOrder.value = false
@@ -178,6 +199,7 @@ export const useCarritoStore = defineStore('carrito', () => {
     creatingOrder,
     orderError,
     orderSuccess,
+    paymentMethod,
     lastFactura,
     total,
     agregarProducto,

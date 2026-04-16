@@ -136,6 +136,7 @@ test('POST /api/orden envia customer_id cuando cliente tiene id', async () => {
     .post('/api/orden')
     .send({
       cliente: { id: 42, nombre: 'Juan Perez', telefono: '300' },
+      payment_method: 'EFECTIVO',
       items: [{ productId: 1, cantidad: 2 }],
     })
     .expect(201)
@@ -160,12 +161,15 @@ test('POST /api/orden envia variation_id', async () => {
   await request(buildApp(mockWoo))
     .post('/api/orden')
     .send({
+      payment_method: 'TRANSFERENCIA',
       items: [{ productId: 1, variationId: 55, cantidad: 1 }],
     })
     .expect(201)
 
   assert.equal(captured.line_items[0].variation_id, 55)
   assert.equal(captured.line_items[0].product_id, 1)
+  assert.equal(captured.payment_method, 'bacs')
+  assert.equal(captured.payment_method_title, 'Transferencia virtual')
 })
 
 test('POST /api/orden rechaza body invalido', async () => {
@@ -177,7 +181,20 @@ test('POST /api/orden rechaza body invalido', async () => {
   }
   await request(buildApp(mockWoo))
     .post('/api/orden')
-    .send({ cliente: { nombre: 'x' }, items: [] })
+    .send({ cliente: { nombre: 'x' }, payment_method: 'EFECTIVO', items: [] })
+    .expect(400)
+})
+
+test('POST /api/orden requiere payment_method', async () => {
+  const mockWoo = {
+    fetchProducts: async () => [],
+    fetchCustomers: async () => [],
+    createCustomer: async () => ({}),
+    createOrder: async () => ({}),
+  }
+  await request(buildApp(mockWoo))
+    .post('/api/orden')
+    .send({ items: [{ productId: 1, cantidad: 1 }] })
     .expect(400)
 })
 
@@ -223,11 +240,13 @@ test('POST /api/orden sin cliente usa facturacion mostrador', async () => {
   }
   const res = await request(buildApp(mockWoo))
     .post('/api/orden')
-    .send({ items: [{ productId: 5, cantidad: 1 }] })
+    .send({ payment_method: 'EFECTIVO', items: [{ productId: 5, cantidad: 1 }] })
     .expect(201)
 
   assert.equal(res.body.orderId, 200)
   assert.equal(captured.billing.first_name, 'POS')
   assert.equal(captured.billing.last_name, 'Mostrador')
   assert.ok(!captured.customer_id)
+  assert.equal(captured.payment_method, 'cod')
+  assert.equal(captured.payment_method_title, 'Pago en efectivo')
 })

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import { useCarritoStore, lineKeyFor } from './carrito'
+import { useCarritoStore, lineKeyFor, PAYMENT_METHODS } from './carrito'
 
 vi.mock('../services/api', () => ({
   default: {
@@ -58,6 +58,7 @@ describe('useCarritoStore', () => {
   it('crearOrden envia cliente con id y variationId', async () => {
     vi.mocked(api.post).mockResolvedValue({ data: { orderId: 7 } })
     const store = useCarritoStore()
+    store.paymentMethod = PAYMENT_METHODS.CASH
     store.agregarVariacion({
       productId: 1,
       variationId: 55,
@@ -69,6 +70,7 @@ describe('useCarritoStore', () => {
     expect(api.post).toHaveBeenCalledWith(
       '/orden',
       expect.objectContaining({
+        payment_method: PAYMENT_METHODS.CASH,
         cliente: { id: 99, nombre: 'Maria', telefono: '555' },
         items: [{ productId: 1, variationId: 55, cantidad: 1 }],
       }),
@@ -87,21 +89,34 @@ describe('useCarritoStore', () => {
     vi.mocked(api.post).mockResolvedValue({ data: { orderId: 1 } })
     const store = useCarritoStore()
     store.agregarProducto({ id: 2, nombre: 'Y', precio: 5, tipo: 'simple', stock: -1 })
+    store.paymentMethod = PAYMENT_METHODS.CASH
     await store.crearOrden(null)
     expect(api.post).toHaveBeenCalledWith('/orden', {
+      paymentMethod: PAYMENT_METHODS.CASH,
+      payment_method: PAYMENT_METHODS.CASH,
       items: [{ productId: 2, cantidad: 1 }],
     })
+  })
+
+  it('crearOrden falla si no hay metodo de pago', async () => {
+    const store = useCarritoStore()
+    store.agregarProducto({ id: 2, nombre: 'Y', precio: 5, tipo: 'simple', stock: -1 })
+    await expect(store.crearOrden(null)).rejects.toThrow('Debes seleccionar un método de pago')
+    expect(api.post).not.toHaveBeenCalled()
   })
 
   it('crearOrden guarda lastFactura y vacia carrito', async () => {
     vi.mocked(api.post).mockResolvedValue({ data: { orderId: 42 } })
     const store = useCarritoStore()
     store.agregarProducto({ id: 1, nombre: 'A', precio: 10, tipo: 'simple', stock: -1 })
+    store.paymentMethod = PAYMENT_METHODS.TRANSFER
     await store.crearOrden({ nombre: 'Juan', telefono: '300' })
     expect(store.lastFactura).toBeTruthy()
     expect(store.lastFactura.id).toBe('42')
     expect(store.lastFactura.items).toHaveLength(1)
     expect(store.lastFactura.cliente.nombre).toBe('Juan')
+    expect(store.lastFactura.metodo_pago).toBe('Transferencia virtual')
     expect(store.items).toHaveLength(0)
+    expect(store.paymentMethod).toBe('')
   })
 })
