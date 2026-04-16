@@ -41,6 +41,10 @@ if (frontendDist) {
     if (req.path.startsWith('/api') || req.path === '/health' || req.path === '/print') {
       return next()
     }
+    // Solo fallback SPA para navegacion HTML, nunca para assets (/assets/*.js, *.css, etc).
+    const wantsHtml = String(req.headers.accept || '').includes('text/html')
+    const hasExtension = path.extname(req.path) !== ''
+    if (!wantsHtml || hasExtension) return next()
     return res.sendFile(path.join(frontendDist, 'index.html'))
   })
 }
