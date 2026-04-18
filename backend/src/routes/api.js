@@ -51,6 +51,8 @@ const createOrderSchema = z
     // Compatibilidad: aceptar snake_case y camelCase durante la transicion.
     payment_method: paymentMethodEnum.optional(),
     paymentMethod: paymentMethodEnum.optional(),
+    cash_received: z.number().finite().optional(),
+    cashReceived: z.number().finite().optional(),
   cliente: z
     .object({
       id: z.number().int().positive().optional(),
@@ -77,6 +79,22 @@ const createOrderSchema = z
       })
     }
   })
+
+async function sumOrderSubtotalFromItems(woo, items) {
+  let sum = 0
+  for (const line of items) {
+    const product = await woo.fetchProductById(line.productId)
+    if (!product) continue
+    let unit = Number(product.price || product.regular_price || 0)
+    if (line.variationId != null && Number(line.variationId) > 0) {
+      const variations = await woo.fetchProductVariations(line.productId)
+      const v = (variations || []).find((x) => x.id === line.variationId)
+      if (v) unit = Number(v.price || v.regular_price || 0)
+    }
+    sum += unit * line.cantidad
+  }
+  return Math.round(sum * 100) / 100
+}
 
 function stockFromWooEntity(entity) {
   if (!entity || typeof entity !== 'object') return 0
@@ -406,6 +424,24 @@ function createApiRouter(woo = defaultWoo) {
           }
           return li
         }),
+      }
+
+      if (selectedPaymentMethod === 'EFECTIVO') {
+        const cashRaw = payload.cash_received ?? payload.cashReceived
+        if (cashRaw == null || !Number.isFinite(Number(cashRaw))) {
+          return res.status(400).json({ error: 'Ingresa el dinero recibido' })
+        }
+        const orderTotal = await sumOrderSubtotalFromItems(woo, payload.items)
+        const cashNum = Math.round(Number(cashRaw) * 100) / 100
+        const totalRounded = Math.round(orderTotal * 100) / 100
+        if (cashNum + 1e-9 < totalRounded) {
+          return res.status(400).json({ error: 'El dinero es insuficiente' })
+        }
+        const changeAmt = Math.round((cashNum - totalRounded) * 100) / 100
+        orderBody.meta_data = [
+          { key: '_naripos_cash_received', value: String(cashNum) },
+          { key: '_naripos_change', value: String(changeAmt) },
+        ]
       }
 
       if (c?.id) {

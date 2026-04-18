@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import api from '../services/api'
+import { changeMinor, minorToMoney, moneyToMinor, parseCashReceivedInput } from '../utils/cashChange'
 
 export function lineKeyFor(productId, variationId) {
   return variationId != null && variationId !== '' ? `v-${variationId}` : `p-${productId}`
@@ -26,6 +27,21 @@ export const useCarritoStore = defineStore('carrito', () => {
   const orderError = ref('')
   const orderSuccess = ref('')
   const paymentMethod = ref('')
+  /** Monto recibido en efectivo (texto del input; spec cambio dinero) */
+  const cashReceivedStr = ref('')
+
+  function setPaymentMethod(value) {
+    paymentMethod.value = value
+    if (value !== PAYMENT_METHODS.CASH) cashReceivedStr.value = ''
+  }
+
+  function addQuickCash(amount) {
+    const add = Number(amount)
+    if (!Number.isFinite(add) || add <= 0) return
+    const base = cashReceivedParsed.value ?? 0
+    cashReceivedStr.value = String(minorToMoney(moneyToMinor(base) + moneyToMinor(add)))
+  }
+
   /** Ultima venta confirmada para imprimir factura (spec ImpresionDeFactura) */
   const lastFactura = ref(null)
 
@@ -127,6 +143,24 @@ export const useCarritoStore = defineStore('carrito', () => {
     items.value.reduce((acc, item) => acc + item.precio * item.cantidad, 0),
   )
 
+  const totalMinor = computed(() => moneyToMinor(total.value))
+
+  const cashReceivedParsed = computed(() => parseCashReceivedInput(cashReceivedStr.value))
+
+  const changeMinorValue = computed(() => {
+    if (paymentMethod.value !== PAYMENT_METHODS.CASH) return null
+    const rec = cashReceivedParsed.value
+    if (rec == null) return null
+    return changeMinor(totalMinor.value, moneyToMinor(rec))
+  })
+
+  const cashReadyForCheckout = computed(() => {
+    if (paymentMethod.value !== PAYMENT_METHODS.CASH) return true
+    const rec = cashReceivedParsed.value
+    if (rec == null) return false
+    return moneyToMinor(rec) >= totalMinor.value
+  })
+
   async function crearOrden(cliente) {
     creatingOrder.value = true
     orderError.value = ''
@@ -134,6 +168,15 @@ export const useCarritoStore = defineStore('carrito', () => {
     try {
       if (!paymentMethod.value) {
         throw new Error('Debes seleccionar un método de pago')
+      }
+      if (paymentMethod.value === PAYMENT_METHODS.CASH) {
+        const rec = cashReceivedParsed.value
+        if (rec == null) {
+          throw new Error('Ingresa el dinero recibido')
+        }
+        if (moneyToMinor(rec) < totalMinor.value) {
+          throw new Error('El dinero es insuficiente')
+        }
       }
       const payload = {
         payment_method: paymentMethod.value,
@@ -143,6 +186,11 @@ export const useCarritoStore = defineStore('carrito', () => {
           ...(variationId != null && variationId !== '' ? { variationId } : {}),
           cantidad,
         })),
+      }
+      if (paymentMethod.value === PAYMENT_METHODS.CASH) {
+        const rec = cashReceivedParsed.value
+        payload.cash_received = rec
+        payload.cashReceived = rec
       }
       if (
         cliente &&
@@ -163,6 +211,11 @@ export const useCarritoStore = defineStore('carrito', () => {
         total: i.precio * i.cantidad,
       }))
       const totalNum = items.value.reduce((acc, i) => acc + i.precio * i.cantidad, 0)
+      const recNum = paymentMethod.value === PAYMENT_METHODS.CASH ? cashReceivedParsed.value : null
+      const cambioNum =
+        paymentMethod.value === PAYMENT_METHODS.CASH && recNum != null
+          ? recNum - totalNum
+          : null
       const cli = cliente || {}
       const { data } = await api.post('/orden', payload)
       const nombreCliente =
@@ -181,10 +234,17 @@ export const useCarritoStore = defineStore('carrito', () => {
         items: itemsSnapshot,
         total: totalNum,
         metodo_pago: paymentLabelFromValue(paymentMethod.value) || paymentMethod.value,
+        ...(recNum != null
+          ? {
+              cash_received: recNum,
+              change: cambioNum,
+            }
+          : {}),
       }
       orderSuccess.value = `Orden #${data.orderId} creada correctamente`
       limpiar()
       paymentMethod.value = ''
+      cashReceivedStr.value = ''
       return data
     } catch (err) {
       orderError.value = err?.response?.data?.error || err?.message || 'No se pudo crear la orden'
@@ -200,6 +260,13 @@ export const useCarritoStore = defineStore('carrito', () => {
     orderError,
     orderSuccess,
     paymentMethod,
+    setPaymentMethod,
+    addQuickCash,
+    cashReceivedStr,
+    totalMinor,
+    cashReceivedParsed,
+    changeMinorValue,
+    cashReadyForCheckout,
     lastFactura,
     total,
     agregarProducto,

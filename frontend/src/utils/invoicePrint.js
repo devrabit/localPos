@@ -37,6 +37,12 @@ export function buildInvoiceDocumentHtml(factura) {
   const documento = escapeHtml(factura.cliente?.documento || '')
   const metodo = escapeHtml(factura.metodo_pago || 'POS')
   const total = formatMoney(factura.total)
+  const recibido =
+    factura.cash_received != null && Number.isFinite(Number(factura.cash_received))
+      ? formatMoney(factura.cash_received)
+      : null
+  const cambio =
+    factura.change != null && Number.isFinite(Number(factura.change)) ? formatMoney(factura.change) : null
 
   const rows = (factura.items || [])
     .map(
@@ -103,6 +109,8 @@ export function buildInvoiceDocumentHtml(factura) {
   <h4 class="nombre-tienda">${tienda}</h4>
   <p><strong>Cliente:</strong> ${clienteNombre}${documento ? ` · ${documento}` : ''}</p>
   <p><strong>Pago:</strong> ${metodo}</p>
+  ${recibido != null ? `<p><strong>Recibido:</strong> $ ${escapeHtml(recibido)}</p>` : ''}
+  ${cambio != null ? `<p><strong>Cambio:</strong> $ ${escapeHtml(cambio)}</p>` : ''}
   <h2>Detalle</h2>
   <table>
     <thead>

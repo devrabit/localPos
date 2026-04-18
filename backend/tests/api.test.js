@@ -127,6 +127,11 @@ test('POST /api/orden envia customer_id cuando cliente tiene id', async () => {
     fetchProducts: async () => [],
     fetchCustomers: async () => [],
     createCustomer: async () => ({}),
+    fetchProductById: async (id) => {
+      assert.equal(id, 1)
+      return { id: 1, price: '10', regular_price: '10' }
+    },
+    fetchProductVariations: async () => [],
     createOrder: async (body) => {
       captured = body
       return { id: 100, status: 'completed', total: '20.00' }
@@ -137,6 +142,7 @@ test('POST /api/orden envia customer_id cuando cliente tiene id', async () => {
     .send({
       cliente: { id: 42, nombre: 'Juan Perez', telefono: '300' },
       payment_method: 'EFECTIVO',
+      cash_received: 25,
       items: [{ productId: 1, cantidad: 2 }],
     })
     .expect(201)
@@ -170,6 +176,40 @@ test('POST /api/orden envia variation_id', async () => {
   assert.equal(captured.line_items[0].product_id, 1)
   assert.equal(captured.payment_method, 'bacs')
   assert.equal(captured.payment_method_title, 'Transferencia virtual')
+})
+
+test('POST /api/orden efectivo con variacion guarda meta de cambio', async () => {
+  let captured
+  const mockWoo = {
+    fetchProducts: async () => [],
+    fetchCustomers: async () => [],
+    createCustomer: async () => ({}),
+    fetchProductById: async (id) => {
+      assert.equal(id, 1)
+      return { id: 1, price: '0', type: 'variable' }
+    },
+    fetchProductVariations: async (pid) => {
+      assert.equal(pid, 1)
+      return [{ id: 55, price: '10', regular_price: '10' }]
+    },
+    createOrder: async (body) => {
+      captured = body
+      return { id: 101, status: 'completed', total: '10.00' }
+    },
+  }
+  await request(buildApp(mockWoo))
+    .post('/api/orden')
+    .send({
+      payment_method: 'EFECTIVO',
+      cash_received: 15,
+      items: [{ productId: 1, variationId: 55, cantidad: 1 }],
+    })
+    .expect(201)
+
+  assert.equal(captured.line_items[0].variation_id, 55)
+  assert.ok(Array.isArray(captured.meta_data))
+  const change = captured.meta_data.find((m) => m.key === '_naripos_change')
+  assert.equal(change.value, '5')
 })
 
 test('POST /api/orden rechaza body invalido', async () => {
@@ -233,6 +273,11 @@ test('POST /api/orden sin cliente usa facturacion mostrador', async () => {
     fetchProducts: async () => [],
     fetchCustomers: async () => [],
     createCustomer: async () => ({}),
+    fetchProductById: async (id) => {
+      assert.equal(id, 5)
+      return { id: 5, price: '10', regular_price: '10' }
+    },
+    fetchProductVariations: async () => [],
     createOrder: async (body) => {
       captured = body
       return { id: 200, status: 'completed', total: '10.00' }
@@ -240,7 +285,11 @@ test('POST /api/orden sin cliente usa facturacion mostrador', async () => {
   }
   const res = await request(buildApp(mockWoo))
     .post('/api/orden')
-    .send({ payment_method: 'EFECTIVO', items: [{ productId: 5, cantidad: 1 }] })
+    .send({
+      payment_method: 'EFECTIVO',
+      cash_received: 10,
+      items: [{ productId: 5, cantidad: 1 }],
+    })
     .expect(201)
 
   assert.equal(res.body.orderId, 200)
@@ -249,4 +298,41 @@ test('POST /api/orden sin cliente usa facturacion mostrador', async () => {
   assert.ok(!captured.customer_id)
   assert.equal(captured.payment_method, 'cod')
   assert.equal(captured.payment_method_title, 'Pago en efectivo')
+})
+
+test('POST /api/orden efectivo sin cash_received devuelve 400', async () => {
+  const mockWoo = {
+    fetchProducts: async () => [],
+    fetchCustomers: async () => [],
+    createCustomer: async () => ({}),
+    createOrder: async () => ({}),
+  }
+  const res = await request(buildApp(mockWoo))
+    .post('/api/orden')
+    .send({
+      payment_method: 'EFECTIVO',
+      items: [{ productId: 1, cantidad: 1 }],
+    })
+    .expect(400)
+  assert.equal(res.body.error, 'Ingresa el dinero recibido')
+})
+
+test('POST /api/orden efectivo con dinero insuficiente devuelve 400', async () => {
+  const mockWoo = {
+    fetchProducts: async () => [],
+    fetchCustomers: async () => [],
+    createCustomer: async () => ({}),
+    fetchProductById: async () => ({ id: 1, price: '100', regular_price: '100' }),
+    fetchProductVariations: async () => [],
+    createOrder: async () => ({}),
+  }
+  const res = await request(buildApp(mockWoo))
+    .post('/api/orden')
+    .send({
+      payment_method: 'EFECTIVO',
+      cash_received: 50,
+      items: [{ productId: 1, cantidad: 1 }],
+    })
+    .expect(400)
+  assert.equal(res.body.error, 'El dinero es insuficiente')
 })

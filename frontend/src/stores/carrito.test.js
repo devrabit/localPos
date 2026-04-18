@@ -59,6 +59,7 @@ describe('useCarritoStore', () => {
     vi.mocked(api.post).mockResolvedValue({ data: { orderId: 7 } })
     const store = useCarritoStore()
     store.paymentMethod = PAYMENT_METHODS.CASH
+    store.cashReceivedStr = '15'
     store.agregarVariacion({
       productId: 1,
       variationId: 55,
@@ -71,6 +72,8 @@ describe('useCarritoStore', () => {
       '/orden',
       expect.objectContaining({
         payment_method: PAYMENT_METHODS.CASH,
+        cash_received: 15,
+        cashReceived: 15,
         cliente: { id: 99, nombre: 'Maria', telefono: '555' },
         items: [{ productId: 1, variationId: 55, cantidad: 1 }],
       }),
@@ -90,10 +93,13 @@ describe('useCarritoStore', () => {
     const store = useCarritoStore()
     store.agregarProducto({ id: 2, nombre: 'Y', precio: 5, tipo: 'simple', stock: -1 })
     store.paymentMethod = PAYMENT_METHODS.CASH
+    store.cashReceivedStr = '10'
     await store.crearOrden(null)
     expect(api.post).toHaveBeenCalledWith('/orden', {
       paymentMethod: PAYMENT_METHODS.CASH,
       payment_method: PAYMENT_METHODS.CASH,
+      cash_received: 10,
+      cashReceived: 10,
       items: [{ productId: 2, cantidad: 1 }],
     })
   })
@@ -102,6 +108,24 @@ describe('useCarritoStore', () => {
     const store = useCarritoStore()
     store.agregarProducto({ id: 2, nombre: 'Y', precio: 5, tipo: 'simple', stock: -1 })
     await expect(store.crearOrden(null)).rejects.toThrow('Debes seleccionar un método de pago')
+    expect(api.post).not.toHaveBeenCalled()
+  })
+
+  it('crearOrden efectivo falla sin dinero recibido', async () => {
+    const store = useCarritoStore()
+    store.agregarProducto({ id: 2, nombre: 'Y', precio: 5, tipo: 'simple', stock: -1 })
+    store.paymentMethod = PAYMENT_METHODS.CASH
+    store.cashReceivedStr = ''
+    await expect(store.crearOrden(null)).rejects.toThrow('Ingresa el dinero recibido')
+    expect(api.post).not.toHaveBeenCalled()
+  })
+
+  it('crearOrden efectivo falla si dinero insuficiente', async () => {
+    const store = useCarritoStore()
+    store.agregarProducto({ id: 2, nombre: 'Y', precio: 5, tipo: 'simple', stock: -1 })
+    store.paymentMethod = PAYMENT_METHODS.CASH
+    store.cashReceivedStr = '3'
+    await expect(store.crearOrden(null)).rejects.toThrow('El dinero es insuficiente')
     expect(api.post).not.toHaveBeenCalled()
   })
 

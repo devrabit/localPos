@@ -1,7 +1,9 @@
 <script setup>
-import { PAYMENT_OPTIONS } from '../stores/carrito'
+import { computed } from 'vue'
+import { PAYMENT_METHODS, PAYMENT_OPTIONS } from '../stores/carrito'
+import { formatMoneyEs } from '../utils/cashChange'
 
-defineProps({
+const props = defineProps({
   items: {
     type: Array,
     required: true,
@@ -18,9 +20,52 @@ defineProps({
     type: String,
     default: '',
   },
+  cashReceivedStr: {
+    type: String,
+    default: '',
+  },
+  /** null si no aplica; negativo = insuficiente */
+  changeMinor: {
+    type: Number,
+    default: null,
+  },
+  cashReceivedParsed: {
+    type: Number,
+    default: null,
+  },
+  cashReadyForCheckout: {
+    type: Boolean,
+    default: true,
+  },
 })
 
-const emit = defineEmits(['inc', 'dec', 'remove', 'checkout', 'update:paymentMethod'])
+const emit = defineEmits([
+  'inc',
+  'dec',
+  'remove',
+  'checkout',
+  'update:paymentMethod',
+  'update:cashReceivedStr',
+  'quickCash',
+])
+
+const showCashBlock = computed(() => props.paymentMethod === PAYMENT_METHODS.CASH)
+
+const cashInsufficient = computed(
+  () =>
+    showCashBlock.value &&
+    props.cashReceivedParsed != null &&
+    props.changeMinor != null &&
+    props.changeMinor < 0,
+)
+
+const cashSufficient = computed(
+  () =>
+    showCashBlock.value &&
+    props.cashReceivedParsed != null &&
+    props.changeMinor != null &&
+    props.changeMinor >= 0,
+)
 </script>
 
 <template>
@@ -86,10 +131,59 @@ const emit = defineEmits(['inc', 'dec', 'remove', 'checkout', 'update:paymentMet
           </label>
         </div>
       </fieldset>
+
+      <div v-if="showCashBlock" class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <label class="block text-sm font-semibold text-slate-800" for="cash-received">Dinero recibido *</label>
+        <input
+          id="cash-received"
+          type="text"
+          inputmode="decimal"
+          autocomplete="off"
+          placeholder="Ingresa el dinero recibido"
+          class="mt-1 min-h-12 w-full rounded-lg border border-slate-300 px-3 py-2 text-base"
+          :value="cashReceivedStr"
+          @input="emit('update:cashReceivedStr', $event.target.value)"
+        />
+        <div class="mt-2 flex flex-wrap gap-2">
+          <button
+            v-for="amt in [10000, 20000, 50000]"
+            :key="amt"
+            type="button"
+            class="min-h-10 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800"
+            @click="emit('quickCash', amt)"
+          >
+            + $ {{ formatMoneyEs(amt) }}
+          </button>
+        </div>
+        <dl class="mt-3 space-y-1 text-sm">
+          <div class="flex justify-between gap-2">
+            <dt class="text-slate-600">Total</dt>
+            <dd class="font-medium text-slate-900">$ {{ formatMoneyEs(total) }}</dd>
+          </div>
+          <div v-if="cashReceivedParsed != null" class="flex justify-between gap-2">
+            <dt class="text-slate-600">Recibido</dt>
+            <dd class="font-medium text-slate-900">$ {{ formatMoneyEs(cashReceivedParsed) }}</dd>
+          </div>
+          <div
+            v-if="changeMinor != null && cashReceivedParsed != null"
+            class="flex justify-between gap-2"
+          >
+            <dt class="text-slate-600">Cambio</dt>
+            <dd
+              class="font-semibold"
+              :class="cashInsufficient ? 'text-rose-600' : cashSufficient ? 'text-emerald-700' : 'text-slate-900'"
+            >
+              $ {{ formatMoneyEs(changeMinor / 100) }}
+            </dd>
+          </div>
+        </dl>
+        <p v-if="cashInsufficient" class="mt-2 text-sm font-medium text-rose-600">El dinero es insuficiente</p>
+      </div>
+
       <button
         type="button"
         class="mt-3 min-h-14 w-full rounded-lg bg-indigo-600 px-4 py-4 text-lg font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-        :disabled="!items.length || checkoutLoading || !paymentMethod"
+        :disabled="!items.length || checkoutLoading || !paymentMethod || !cashReadyForCheckout"
         @click="emit('checkout')"
       >
         {{ checkoutLoading ? 'Enviando...' : 'Confirmar venta' }}

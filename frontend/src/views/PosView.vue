@@ -292,11 +292,17 @@ async function imprimirFacturaUltimaVenta() {
         :total="carritoStore.total"
         :checkout-loading="carritoStore.creatingOrder"
         :payment-method="carritoStore.paymentMethod"
+        :cash-received-str="carritoStore.cashReceivedStr"
+        :change-minor="carritoStore.changeMinorValue"
+        :cash-received-parsed="carritoStore.cashReceivedParsed"
+        :cash-ready-for-checkout="carritoStore.cashReadyForCheckout"
         @inc="carritoStore.incrementar"
         @dec="carritoStore.decrementar"
         @remove="carritoStore.eliminar"
         @checkout="confirmarVenta"
-        @update:payment-method="(value) => (carritoStore.paymentMethod = value)"
+        @update:payment-method="carritoStore.setPaymentMethod"
+        @update:cash-received-str="(v) => (carritoStore.cashReceivedStr = v)"
+        @quick-cash="carritoStore.addQuickCash"
       />
       <CustomerPanel
         ref="customerPanelRef"
