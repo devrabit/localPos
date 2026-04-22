@@ -26,6 +26,72 @@ const scanFeedback = ref({ tipo: '', texto: '' })
 const escaneoBusy = ref(false)
 const escaneoApiLoading = ref(false)
 let scanFeedbackTimer = null
+const MODULE_ORDER_STORAGE_KEY = 'naripos:dashboard-module-order'
+const DEFAULT_MODULE_ORDER = ['search', 'products', 'cart', 'customers']
+const draggingModule = ref('')
+const moduleLabels = {
+  search: 'Buscador',
+  products: 'Listado de productos',
+  cart: 'Carrito',
+  customers: 'Clientes',
+}
+
+function onModuleDragStart(event, moduleKey) {
+  draggingModule.value = moduleKey
+  event.dataTransfer.effectAllowed = 'move'
+  event.dataTransfer.setData('text/plain', moduleKey)
+}
+
+function onModuleDragOver(event) {
+  event.preventDefault()
+  event.dataTransfer.dropEffect = 'move'
+}
+
+function onModuleDrop(moduleKey) {
+  const dragged = draggingModule.value
+  if (!dragged || dragged === moduleKey) return
+  const nextOrder = [...moduleOrder.value]
+  const fromIndex = nextOrder.indexOf(dragged)
+  const toIndex = nextOrder.indexOf(moduleKey)
+  if (fromIndex === -1 || toIndex === -1) return
+  nextOrder.splice(fromIndex, 1)
+  nextOrder.splice(toIndex, 0, dragged)
+  moduleOrder.value = nextOrder
+  guardarOrdenModulos(nextOrder)
+}
+
+function onModuleDragEnd() {
+  draggingModule.value = ''
+}
+
+function normalizarOrdenModulos(rawOrder) {
+  if (!Array.isArray(rawOrder)) return [...DEFAULT_MODULE_ORDER]
+  const validKeys = new Set(DEFAULT_MODULE_ORDER)
+  const sanitizado = rawOrder.filter((key) => validKeys.has(key))
+  for (const requiredKey of DEFAULT_MODULE_ORDER) {
+    if (!sanitizado.includes(requiredKey)) sanitizado.push(requiredKey)
+  }
+  return sanitizado
+}
+
+function leerOrdenModulosGuardado() {
+  if (typeof window === 'undefined') return [...DEFAULT_MODULE_ORDER]
+  try {
+    const saved = localStorage.getItem(MODULE_ORDER_STORAGE_KEY)
+    if (!saved) return [...DEFAULT_MODULE_ORDER]
+    const parsed = JSON.parse(saved)
+    return normalizarOrdenModulos(parsed)
+  } catch {
+    return [...DEFAULT_MODULE_ORDER]
+  }
+}
+
+function guardarOrdenModulos(order) {
+  if (typeof window === 'undefined') return
+  localStorage.setItem(MODULE_ORDER_STORAGE_KEY, JSON.stringify(normalizarOrdenModulos(order)))
+}
+
+const moduleOrder = ref(leerOrdenModulosGuardado())
 
 function setScanFeedback(tipo, texto) {
   if (scanFeedbackTimer) clearTimeout(scanFeedbackTimer)
@@ -216,17 +282,6 @@ async function imprimirFacturaUltimaVenta() {
           Historial de ventas
         </router-link>
       </div>
-      <input
-        v-model="searchInput"
-        type="text"
-        placeholder="Nombre o SKU padre; codigo de variacion: Enter si no aparece en la lista"
-        data-no-barcode-scan
-        class="mt-3 min-h-12 w-full rounded-lg border border-slate-300 px-3 py-3 text-base"
-        @keydown.enter.prevent="onBusquedaEnter"
-      />
-      <p v-if="escaneoApiLoading" class="mt-2 text-sm font-medium text-slate-600" role="status">
-        Buscando codigo...
-      </p>
     </header>
 
     <p
@@ -274,46 +329,187 @@ async function imprimirFacturaUltimaVenta() {
       <p v-if="facturaError" class="mt-2 text-sm text-rose-700">{{ facturaError }}</p>
     </div>
 
-    <div class="grid gap-4 xl:grid-cols-[1.7fr_1fr_1fr]">
-      <ProductList
-        :productos="productosStore.productosFiltrados"
-        :loading="productosStore.loading"
-        @add="carritoStore.agregarProducto"
-        @pick-variable="variableProduct = $event"
-      />
-      <VariationPickerModal
-        v-if="variableProduct"
-        :product="variableProduct"
-        @close="variableProduct = null"
-        @confirm="onVariacionElegida"
-      />
-      <CartPanel
-        :items="carritoStore.items"
-        :total="carritoStore.total"
-        :checkout-loading="carritoStore.creatingOrder"
-        :payment-method="carritoStore.paymentMethod"
-        :cash-received-str="carritoStore.cashReceivedStr"
-        :change-minor="carritoStore.changeMinorValue"
-        :cash-received-parsed="carritoStore.cashReceivedParsed"
-        :cash-ready-for-checkout="carritoStore.cashReadyForCheckout"
-        @inc="carritoStore.incrementar"
-        @dec="carritoStore.decrementar"
-        @remove="carritoStore.eliminar"
-        @checkout="confirmarVenta"
-        @update:payment-method="carritoStore.setPaymentMethod"
-        @update:cash-received-str="(v) => (carritoStore.cashReceivedStr = v)"
-        @quick-cash="carritoStore.addQuickCash"
-      />
-      <CustomerPanel
-        ref="customerPanelRef"
-        :clientes="clientesStore.clientes"
-        :selected-cliente="clientesStore.selectedCliente"
-        :loading="clientesStore.loading"
-        :creating="clientesStore.creating"
-        :error="clientesStore.error"
-        @select="(cliente) => (clientesStore.selectedCliente = cliente)"
-        @create="crearCliente"
-      />
+    <div class="flex flex-col gap-4">
+      <section
+        v-if="moduleOrder[0]"
+        :key="moduleOrder[0]"
+        draggable="true"
+        class="rounded-xl bg-white p-3 shadow-sm ring-1 ring-transparent transition"
+        :class="
+          draggingModule === moduleOrder[0] ? 'cursor-grabbing opacity-80 ring-slate-300' : 'cursor-grab'
+        "
+        @dragstart="onModuleDragStart($event, moduleOrder[0])"
+        @dragover="onModuleDragOver"
+        @drop="onModuleDrop(moduleOrder[0])"
+        @dragend="onModuleDragEnd"
+      >
+        <div class="mb-2 flex items-center justify-between gap-3 border-b border-slate-200 pb-2">
+          <h2 class="text-sm font-semibold text-slate-700">↕ {{ moduleLabels[moduleOrder[0]] }}</h2>
+          <button
+            type="button"
+            class="inline-flex items-center gap-2 rounded-md border border-blue-300 bg-blue-50 px-2 py-1 text-xs font-bold uppercase tracking-wide text-blue-700 shadow-sm"
+            aria-label="Arrastrar modulo"
+            title="Arrastrar modulo"
+          >
+            <svg class="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <circle cx="5" cy="3" r="1.2" />
+              <circle cx="11" cy="3" r="1.2" />
+              <circle cx="5" cy="8" r="1.2" />
+              <circle cx="11" cy="8" r="1.2" />
+              <circle cx="5" cy="13" r="1.2" />
+              <circle cx="11" cy="13" r="1.2" />
+            </svg>
+            <span>Arrastrar</span>
+          </button>
+        </div>
+
+        <div v-if="moduleOrder[0] === 'search'">
+          <input
+            v-model="searchInput"
+            type="text"
+            placeholder="Nombre o SKU padre; codigo de variacion: Enter si no aparece en la lista"
+            data-no-barcode-scan
+            class="min-h-12 w-full rounded-lg border border-slate-300 px-3 py-3 text-base"
+            @keydown.enter.prevent="onBusquedaEnter"
+          />
+          <p v-if="escaneoApiLoading" class="mt-2 text-sm font-medium text-slate-600" role="status">
+            Buscando codigo...
+          </p>
+        </div>
+
+        <ProductList
+          v-else-if="moduleOrder[0] === 'products'"
+          :productos="productosStore.productosFiltrados"
+          :loading="productosStore.loading"
+          @add="carritoStore.agregarProducto"
+          @pick-variable="variableProduct = $event"
+        />
+
+        <CartPanel
+          v-else-if="moduleOrder[0] === 'cart'"
+          :items="carritoStore.items"
+          :total="carritoStore.total"
+          :checkout-loading="carritoStore.creatingOrder"
+          :payment-method="carritoStore.paymentMethod"
+          :cash-received-str="carritoStore.cashReceivedStr"
+          :change-minor="carritoStore.changeMinorValue"
+          :cash-received-parsed="carritoStore.cashReceivedParsed"
+          :cash-ready-for-checkout="carritoStore.cashReadyForCheckout"
+          @inc="carritoStore.incrementar"
+          @dec="carritoStore.decrementar"
+          @remove="carritoStore.eliminar"
+          @checkout="confirmarVenta"
+          @update:payment-method="carritoStore.setPaymentMethod"
+          @update:cash-received-str="(v) => (carritoStore.cashReceivedStr = v)"
+          @quick-cash="carritoStore.addQuickCash"
+        />
+
+        <CustomerPanel
+          v-else
+          ref="customerPanelRef"
+          :clientes="clientesStore.clientes"
+          :selected-cliente="clientesStore.selectedCliente"
+          :loading="clientesStore.loading"
+          :creating="clientesStore.creating"
+          :error="clientesStore.error"
+          @select="(cliente) => (clientesStore.selectedCliente = cliente)"
+          @create="crearCliente"
+        />
+      </section>
+
+      <div class="grid gap-4 xl:grid-cols-[1fr_2fr_1fr]">
+        <section
+          v-for="moduleKey in moduleOrder.slice(1)"
+          :key="moduleKey"
+          draggable="true"
+          class="rounded-xl bg-white p-3 shadow-sm ring-1 ring-transparent transition"
+          :class="draggingModule === moduleKey ? 'cursor-grabbing opacity-80 ring-slate-300' : 'cursor-grab'"
+          @dragstart="onModuleDragStart($event, moduleKey)"
+          @dragover="onModuleDragOver"
+          @drop="onModuleDrop(moduleKey)"
+          @dragend="onModuleDragEnd"
+        >
+          <div class="mb-2 flex items-center justify-between gap-3 border-b border-slate-200 pb-2">
+            <h2 class="text-sm font-semibold text-slate-700">↕ {{ moduleLabels[moduleKey] }}</h2>
+            <button
+              type="button"
+              class="inline-flex items-center gap-2 rounded-md border border-blue-300 bg-blue-50 px-2 py-1 text-xs font-bold uppercase tracking-wide text-blue-700 shadow-sm"
+              aria-label="Arrastrar modulo"
+              title="Arrastrar modulo"
+            >
+              <svg class="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <circle cx="5" cy="3" r="1.2" />
+                <circle cx="11" cy="3" r="1.2" />
+                <circle cx="5" cy="8" r="1.2" />
+                <circle cx="11" cy="8" r="1.2" />
+                <circle cx="5" cy="13" r="1.2" />
+                <circle cx="11" cy="13" r="1.2" />
+              </svg>
+              <span>Arrastrar</span>
+            </button>
+          </div>
+
+          <div v-if="moduleKey === 'search'">
+            <input
+              v-model="searchInput"
+              type="text"
+              placeholder="Nombre o SKU padre; codigo de variacion: Enter si no aparece en la lista"
+              data-no-barcode-scan
+              class="min-h-12 w-full rounded-lg border border-slate-300 px-3 py-3 text-base"
+              @keydown.enter.prevent="onBusquedaEnter"
+            />
+            <p v-if="escaneoApiLoading" class="mt-2 text-sm font-medium text-slate-600" role="status">
+              Buscando codigo...
+            </p>
+          </div>
+
+          <ProductList
+            v-else-if="moduleKey === 'products'"
+            :productos="productosStore.productosFiltrados"
+            :loading="productosStore.loading"
+            @add="carritoStore.agregarProducto"
+            @pick-variable="variableProduct = $event"
+          />
+
+          <CartPanel
+            v-else-if="moduleKey === 'cart'"
+            :items="carritoStore.items"
+            :total="carritoStore.total"
+            :checkout-loading="carritoStore.creatingOrder"
+            :payment-method="carritoStore.paymentMethod"
+            :cash-received-str="carritoStore.cashReceivedStr"
+            :change-minor="carritoStore.changeMinorValue"
+            :cash-received-parsed="carritoStore.cashReceivedParsed"
+            :cash-ready-for-checkout="carritoStore.cashReadyForCheckout"
+            @inc="carritoStore.incrementar"
+            @dec="carritoStore.decrementar"
+            @remove="carritoStore.eliminar"
+            @checkout="confirmarVenta"
+            @update:payment-method="carritoStore.setPaymentMethod"
+            @update:cash-received-str="(v) => (carritoStore.cashReceivedStr = v)"
+            @quick-cash="carritoStore.addQuickCash"
+          />
+
+          <CustomerPanel
+            v-else
+            ref="customerPanelRef"
+            :clientes="clientesStore.clientes"
+            :selected-cliente="clientesStore.selectedCliente"
+            :loading="clientesStore.loading"
+            :creating="clientesStore.creating"
+            :error="clientesStore.error"
+            @select="(cliente) => (clientesStore.selectedCliente = cliente)"
+            @create="crearCliente"
+          />
+        </section>
+      </div>
     </div>
+
+    <VariationPickerModal
+      v-if="variableProduct"
+      :product="variableProduct"
+      @close="variableProduct = null"
+      @confirm="onVariacionElegida"
+    />
   </main>
 </template>
