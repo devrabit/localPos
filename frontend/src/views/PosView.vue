@@ -64,6 +64,18 @@ function onModuleDragEnd() {
   draggingModule.value = ''
 }
 
+function moveModule(moduleKey, direction) {
+  const currentIndex = moduleOrder.value.indexOf(moduleKey)
+  if (currentIndex === -1) return
+  const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
+  if (targetIndex < 0 || targetIndex >= moduleOrder.value.length) return
+  const nextOrder = [...moduleOrder.value]
+  nextOrder.splice(currentIndex, 1)
+  nextOrder.splice(targetIndex, 0, moduleKey)
+  moduleOrder.value = nextOrder
+  guardarOrdenModulos(nextOrder)
+}
+
 function normalizarOrdenModulos(rawOrder) {
   if (!Array.isArray(rawOrder)) return [...DEFAULT_MODULE_ORDER]
   const validKeys = new Set(DEFAULT_MODULE_ORDER)
@@ -345,22 +357,56 @@ async function imprimirFacturaUltimaVenta() {
       >
         <div class="mb-2 flex items-center justify-between gap-3 border-b border-slate-200 pb-2">
           <h2 class="text-sm font-semibold text-slate-700">↕ {{ moduleLabels[moduleOrder[0]] }}</h2>
-          <button
-            type="button"
-            class="inline-flex items-center gap-2 rounded-md border border-blue-300 bg-blue-50 px-2 py-1 text-xs font-bold uppercase tracking-wide text-blue-700 shadow-sm"
-            aria-label="Arrastrar modulo"
-            title="Arrastrar modulo"
-          >
-            <svg class="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-              <circle cx="5" cy="3" r="1.2" />
-              <circle cx="11" cy="3" r="1.2" />
-              <circle cx="5" cy="8" r="1.2" />
-              <circle cx="11" cy="8" r="1.2" />
-              <circle cx="5" cy="13" r="1.2" />
-              <circle cx="11" cy="13" r="1.2" />
-            </svg>
-            <span>Arrastrar</span>
-          </button>
+          <div class="flex items-center gap-1.5">
+            <button
+              type="button"
+              class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 shadow-sm md:hidden"
+              aria-label="Mover modulo arriba"
+              @click="moveModule(moduleOrder[0], 'up')"
+            >
+                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path
+                    d="M5 12.5L10 7.5L15 12.5"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+            </button>
+            <button
+              type="button"
+              class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 shadow-sm md:hidden"
+              aria-label="Mover modulo abajo"
+              @click="moveModule(moduleOrder[0], 'down')"
+            >
+                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path
+                    d="M5 7.5L10 12.5L15 7.5"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+            </button>
+            <button
+              type="button"
+              class="inline-flex items-center gap-2 rounded-md border border-blue-300 bg-blue-50 px-2 py-1 text-xs font-bold uppercase tracking-wide text-blue-700 shadow-sm"
+              aria-label="Arrastrar modulo"
+              title="Arrastrar modulo"
+            >
+              <svg class="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <circle cx="5" cy="3" r="1.2" />
+                <circle cx="11" cy="3" r="1.2" />
+                <circle cx="5" cy="8" r="1.2" />
+                <circle cx="11" cy="8" r="1.2" />
+                <circle cx="5" cy="13" r="1.2" />
+                <circle cx="11" cy="13" r="1.2" />
+              </svg>
+              <span>Arrastrar</span>
+            </button>
+          </div>
         </div>
 
         <div v-if="moduleOrder[0] === 'search'">
@@ -431,22 +477,56 @@ async function imprimirFacturaUltimaVenta() {
         >
           <div class="mb-2 flex items-center justify-between gap-3 border-b border-slate-200 pb-2">
             <h2 class="text-sm font-semibold text-slate-700">↕ {{ moduleLabels[moduleKey] }}</h2>
-            <button
-              type="button"
-              class="inline-flex items-center gap-2 rounded-md border border-blue-300 bg-blue-50 px-2 py-1 text-xs font-bold uppercase tracking-wide text-blue-700 shadow-sm"
-              aria-label="Arrastrar modulo"
-              title="Arrastrar modulo"
-            >
-              <svg class="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                <circle cx="5" cy="3" r="1.2" />
-                <circle cx="11" cy="3" r="1.2" />
-                <circle cx="5" cy="8" r="1.2" />
-                <circle cx="11" cy="8" r="1.2" />
-                <circle cx="5" cy="13" r="1.2" />
-                <circle cx="11" cy="13" r="1.2" />
-              </svg>
-              <span>Arrastrar</span>
-            </button>
+            <div class="flex items-center gap-1.5">
+              <button
+                type="button"
+                class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 shadow-sm md:hidden"
+                aria-label="Mover modulo arriba"
+                @click="moveModule(moduleKey, 'up')"
+              >
+                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path
+                    d="M5 12.5L10 7.5L15 12.5"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 shadow-sm md:hidden"
+                aria-label="Mover modulo abajo"
+                @click="moveModule(moduleKey, 'down')"
+              >
+                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path
+                    d="M5 7.5L10 12.5L15 7.5"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="inline-flex items-center gap-2 rounded-md border border-blue-300 bg-blue-50 px-2 py-1 text-xs font-bold uppercase tracking-wide text-blue-700 shadow-sm"
+                aria-label="Arrastrar modulo"
+                title="Arrastrar modulo"
+              >
+                <svg class="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                  <circle cx="5" cy="3" r="1.2" />
+                  <circle cx="11" cy="3" r="1.2" />
+                  <circle cx="5" cy="8" r="1.2" />
+                  <circle cx="11" cy="8" r="1.2" />
+                  <circle cx="5" cy="13" r="1.2" />
+                  <circle cx="11" cy="13" r="1.2" />
+                </svg>
+                <span>Arrastrar</span>
+              </button>
+            </div>
           </div>
 
           <div v-if="moduleKey === 'search'">
