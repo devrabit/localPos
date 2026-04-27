@@ -13,6 +13,7 @@ const {
 } = require('../utils/productScan')
 const { isVariableProductType } = require('../utils/wooProductType')
 const { env } = require('../config/env')
+const { createOutflow, listOutflows } = require('../services/outflowsStorage')
 
 const createCustomerSchema = z.object({
   nombre: z.string().min(2),
@@ -159,6 +160,26 @@ const ordenesQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 })
+
+const createOutflowSchema = z.object({
+  motivo: z.string().trim().min(1, 'Motivo requerido'),
+  suma: z.coerce.number().positive('La suma debe ser mayor a 0'),
+  tipoPago: z.enum(['efectivo', 'transferencia_virtual']),
+})
+
+const salidasQuerySchema = z.object({
+  fechaInicio: z.string().max(32).optional(),
+  fechaFin: z.string().max(32).optional(),
+})
+
+function normalizeDateBoundary(input, endOfDay = false) {
+  if (!input) return null
+  const suffix = endOfDay ? 'T23:59:59.999Z' : 'T00:00:00.000Z'
+  const raw = /^\d{4}-\d{2}-\d{2}$/.test(input) ? `${input}${suffix}` : input
+  const parsed = new Date(raw)
+  if (Number.isNaN(parsed.getTime())) return null
+  return parsed
+}
 
 function mapOrdenLista(o) {
   return {
@@ -456,6 +477,40 @@ function createApiRouter(woo = defaultWoo) {
         status: order.status,
         total: order.total,
       })
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  router.get('/salidas', async (req, res, next) => {
+    try {
+      const parsed = salidasQuerySchema.parse(req.query)
+      const fechaInicio = normalizeDateBoundary(parsed.fechaInicio, false)
+      const fechaFin = normalizeDateBoundary(parsed.fechaFin, true)
+
+      const salidas = await listOutflows()
+      const filtradas = salidas.filter((item) => {
+        const createdAt = new Date(item.fecha)
+        if (Number.isNaN(createdAt.getTime())) return false
+        if (fechaInicio && createdAt < fechaInicio) return false
+        if (fechaFin && createdAt > fechaFin) return false
+        return true
+      })
+
+      res.json({ salidas: filtradas })
+    } catch (error) {
+      if (error?.name === 'ZodError') {
+        return res.status(400).json({ error: 'Parametros de fecha invalidos' })
+      }
+      next(error)
+    }
+  })
+
+  router.post('/salidas', async (req, res, next) => {
+    try {
+      const payload = createOutflowSchema.parse(req.body)
+      const salida = await createOutflow(payload)
+      res.status(201).json(salida)
     } catch (error) {
       next(error)
     }

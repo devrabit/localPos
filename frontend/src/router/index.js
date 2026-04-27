@@ -4,6 +4,8 @@ const PosView = () => import('../views/PosView.vue')
 const HistorialView = () => import('../modules/historial/views/HistorialView.vue')
 const DetalleVentaView = () => import('../modules/historial/views/DetalleVentaView.vue')
 const BarcodeView = () => import('../views/BarcodeView.vue')
+const HistorialSalidasView = () => import('../modules/salidas/views/HistorialSalidasView.vue')
+const SalidasView = () => import('../modules/salidas/views/SalidasView.vue')
 
 const router = createRouter({
   history: createWebHistory(),
@@ -27,6 +29,16 @@ const router = createRouter({
       path: '/codigos-barras',
       name: 'codigos-barras',
       component: BarcodeView,
+    },
+    {
+      path: '/salidas',
+      name: 'salidas',
+      component: HistorialSalidasView,
+    },
+    {
+      path: '/salidas/nueva',
+      name: 'salidas-nueva',
+      component: SalidasView,
     },
   ],
 })
