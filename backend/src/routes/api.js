@@ -144,6 +144,113 @@ function mapProductDto(p, variaciones = []) {
   return dto
 }
 
+function extractMarcaFromWooProduct(p) {
+  if (!p || typeof p !== 'object') return 'Sin marca'
+  const brands = p.brands
+  if (Array.isArray(brands) && brands.length > 0) {
+    const first = brands[0]
+    if (first && typeof first === 'object') {
+      const label = String(first.name || first.slug || '').trim()
+      if (label) return label
+    } else if (typeof first === 'string' && first.trim()) {
+      return first.trim()
+    }
+  }
+  const slugNorm = (slug) => String(slug || '').toLowerCase().replace(/^pa_/, '')
+  for (const a of p.attributes || []) {
+    if (!a || typeof a !== 'object') continue
+    const sk = slugNorm(a.slug)
+    const nm = String(a.name || '').trim().toLowerCase()
+    const isMarcaSlug = sk === 'marca' || sk === 'brand'
+    const isMarcaName = nm === 'marca' || nm === 'brand'
+    if (!isMarcaSlug && !isMarcaName) continue
+    const opts = Array.isArray(a.options) ? a.options.filter((x) => x != null && String(x).trim()) : []
+    if (opts.length) return String(opts[0]).trim()
+  }
+  return 'Sin marca'
+}
+
+function entityIsAgotado(entity) {
+  return stockFromWooEntity(entity) === 0
+}
+
+async function fetchAgotadosPayload(woo) {
+  const variationConcurrency = Math.max(
+    1,
+    Math.min(24, Number(process.env.NARIPOS_VARIATION_FETCH_CONCURRENCY || 8)),
+  )
+  const products = await woo.fetchProducts()
+  const rows = []
+  const variableJobs = []
+
+  for (const p of products) {
+    const marca = extractMarcaFromWooProduct(p)
+    if (isVariableProductType(p.type)) {
+      variableJobs.push({ p, marca })
+      continue
+    }
+    if (entityIsAgotado(p)) {
+      rows.push({
+        marca,
+        nombre: p.name || `Producto ${p.id}`,
+        sku: skuFromEntity(p),
+        tipo: 'simple',
+        productId: p.id,
+        variationId: null,
+      })
+    }
+  }
+
+  for (let i = 0; i < variableJobs.length; i += variationConcurrency) {
+    const batch = variableJobs.slice(i, i + variationConcurrency)
+    await Promise.all(
+      batch.map(async ({ p, marca }) => {
+        let raw = []
+        try {
+          raw = await woo.fetchProductVariations(p.id)
+        } catch {
+          raw = []
+        }
+        const parentName = p.name || `Producto ${p.id}`
+        for (const v of raw) {
+          if (!entityIsAgotado(v)) continue
+          const dto = mapVariationToDto(v, parentName, p.id)
+          rows.push({
+            marca,
+            nombre: dto.nombre,
+            sku: dto.sku,
+            tipo: 'variacion',
+            productId: p.id,
+            variationId: v.id,
+          })
+        }
+      }),
+    )
+  }
+
+  const byMarca = new Map()
+  for (const r of rows) {
+    const m = r.marca && String(r.marca).trim() ? String(r.marca).trim() : 'Sin marca'
+    if (!byMarca.has(m)) byMarca.set(m, [])
+    byMarca.get(m).push(r)
+  }
+
+  const grupos = Array.from(byMarca.entries())
+    .map(([marcaLabel, items]) => ({
+      marca: marcaLabel,
+      items: items.sort((a, b) =>
+        String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es', { sensitivity: 'base' }),
+      ),
+    }))
+    .sort((a, b) => {
+      if (a.marca === 'Sin marca') return 1
+      if (b.marca === 'Sin marca') return -1
+      return a.marca.localeCompare(b.marca, 'es', { sensitivity: 'base' })
+    })
+
+  return { total: rows.length, grupos }
+}
+
 function mapCustomer(c) {
   return {
     id: c.id,
@@ -260,6 +367,15 @@ function createApiRouter(woo = defaultWoo) {
         variacion: dtoV,
         sinStock,
       })
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  router.get('/productos/agotados', async (_req, res, next) => {
+    try {
+      const payload = await fetchAgotadosPayload(woo)
+      res.json(payload)
     } catch (error) {
       next(error)
     }

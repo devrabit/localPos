@@ -121,6 +121,82 @@ test('GET /api/productos/:id/variaciones simple devuelve vacio', async () => {
   assert.deepEqual(res.body.variaciones, [])
 })
 
+test('GET /api/productos/agotados agrupa por marca (simple y variacion)', async () => {
+  const mockWoo = {
+    fetchProducts: async () => [
+      {
+        id: 1,
+        type: 'simple',
+        name: 'Galleta',
+        price: '1',
+        sku: 'G1',
+        manage_stock: true,
+        stock_quantity: 0,
+        attributes: [{ name: 'Marca', slug: 'pa_marca', options: ['Dulces SA'] }],
+      },
+      {
+        id: 2,
+        type: 'simple',
+        name: 'Agua',
+        price: '2',
+        sku: 'A1',
+        manage_stock: true,
+        stock_quantity: 5,
+        attributes: [],
+      },
+      {
+        id: 10,
+        type: 'variable',
+        name: 'Camiseta',
+        sku: 'C-PADRE',
+        manage_stock: false,
+        stock_quantity: null,
+        attributes: [{ name: 'Marca', slug: 'pa_marca', options: ['Textil'] }],
+      },
+    ],
+    fetchProductVariations: async (pid) => {
+      assert.equal(pid, 10)
+      return [
+        {
+          id: 101,
+          price: '25',
+          regular_price: '25',
+          sku: 'C1-R',
+          manage_stock: true,
+          stock_quantity: 0,
+          attributes: [{ name: 'Color', option: 'Rojo' }],
+        },
+        {
+          id: 102,
+          price: '25',
+          regular_price: '25',
+          sku: 'C1-A',
+          manage_stock: true,
+          stock_quantity: 2,
+          attributes: [{ name: 'Color', option: 'Azul' }],
+        },
+      ]
+    },
+    fetchCustomers: async () => [],
+    createCustomer: async () => ({}),
+    createOrder: async () => ({}),
+  }
+  const res = await request(buildApp(mockWoo)).get('/api/productos/agotados').expect(200)
+  assert.equal(res.body.total, 2)
+  assert.equal(res.body.grupos.length, 2)
+  const marcas = res.body.grupos.map((g) => g.marca).sort()
+  assert.deepEqual(marcas, ['Dulces SA', 'Textil'])
+  const dulces = res.body.grupos.find((g) => g.marca === 'Dulces SA')
+  assert.equal(dulces.items.length, 1)
+  assert.equal(dulces.items[0].tipo, 'simple')
+  assert.equal(dulces.items[0].productId, 1)
+  assert.equal(dulces.items[0].variationId, null)
+  const textil = res.body.grupos.find((g) => g.marca === 'Textil')
+  assert.equal(textil.items.length, 1)
+  assert.equal(textil.items[0].tipo, 'variacion')
+  assert.equal(textil.items[0].variationId, 101)
+})
+
 test('POST /api/orden envia customer_id cuando cliente tiene id', async () => {
   let captured
   const mockWoo = {

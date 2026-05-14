@@ -6,6 +6,7 @@ const DetalleVentaView = () => import('../modules/historial/views/DetalleVentaVi
 const BarcodeView = () => import('../views/BarcodeView.vue')
 const HistorialSalidasView = () => import('../modules/salidas/views/HistorialSalidasView.vue')
 const SalidasView = () => import('../modules/salidas/views/SalidasView.vue')
+const AgotadosView = () => import('../modules/agotados/views/AgotadosView.vue')
 
 const router = createRouter({
   history: createWebHistory(),
@@ -39,6 +40,11 @@ const router = createRouter({
       path: '/salidas/nueva',
       name: 'salidas-nueva',
       component: SalidasView,
+    },
+    {
+      path: '/agotados',
+      name: 'agotados',
+      component: AgotadosView,
     },
   ],
 })
