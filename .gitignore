@@ -8,6 +8,8 @@ dist/
 
 # Secrets (usar .env.example como plantilla)
 backend/.env
+# Anotaciones generadas en runtime (no versionar datos locales)
+backend/data/Anotaciones.json
 .cursor/mcp.json
 *.local
 

@@ -136,6 +136,7 @@ function mapProductDto(p, variaciones = []) {
     precio: Number(p.price || 0),
     stock: stockFromWooEntity(p),
     sku: skuFromEntity(p),
+    marca: extractMarcaFromWooProduct(p),
     variaciones,
   }
   if (tipo === 'variable' && variaciones.length) {
@@ -392,6 +393,28 @@ function createApiRouter(woo = defaultWoo) {
     try {
       const payload = await fetchAgotadosPayload(woo)
       res.json(payload)
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  /** Marcas únicas del catálogo Woo que coinciden con q (para anotaciones / POS). */
+  router.get('/marcas', async (req, res, next) => {
+    try {
+      const qRaw = (req.query.q ?? req.query.busqueda ?? '').toString().trim()
+      if (!qRaw) {
+        return res.json({ marcas: [] })
+      }
+      const products = await woo.fetchProducts()
+      const brandSet = new Set()
+      for (const p of products) {
+        const label = String(extractMarcaFromWooProduct(p) || '').trim()
+        if (label && label !== 'Sin marca') brandSet.add(label)
+      }
+      const sorted = [...brandSet].sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }))
+      const qLower = qRaw.toLowerCase()
+      const marcas = sorted.filter((m) => m.toLowerCase().includes(qLower))
+      res.json({ marcas })
     } catch (error) {
       next(error)
     }

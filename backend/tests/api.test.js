@@ -46,6 +46,7 @@ test('GET /api/productos incluye tipo y variaciones vacias para simple', async (
     precio: 10.5,
     stock: 5,
     sku: 'S1',
+    marca: 'Sin marca',
     variaciones: [],
   })
 })
@@ -70,7 +71,42 @@ test('GET /api/productos variable deja variaciones vacias (lazy, resuelve escane
   const res = await request(buildApp(mockWoo)).get('/api/productos').expect(200)
   assert.equal(res.body.length, 1)
   assert.equal(res.body[0].tipo, 'variable')
+  assert.equal(res.body[0].marca, 'Sin marca')
   assert.deepEqual(res.body[0].variaciones, [])
+})
+
+test('GET /api/marcas devuelve marcas que coinciden con q', async () => {
+  const mockWoo = {
+    fetchProducts: async () => [
+      {
+        id: 1,
+        type: 'simple',
+        name: 'A',
+        price: '1',
+        sku: 'S1',
+        manage_stock: true,
+        stock_quantity: 1,
+        attributes: [{ name: 'Marca', slug: 'pa_marca', options: ['Nike Sport'] }],
+      },
+      {
+        id: 2,
+        type: 'simple',
+        name: 'B',
+        price: '2',
+        sku: 'S2',
+        manage_stock: true,
+        stock_quantity: 1,
+        attributes: [{ name: 'Marca', slug: 'pa_marca', options: ['Adidas'] }],
+      },
+    ],
+    fetchCustomers: async () => [],
+    createCustomer: async () => ({}),
+    createOrder: async () => ({}),
+  }
+  const res = await request(buildApp(mockWoo)).get('/api/marcas').query({ q: 'nik' }).expect(200)
+  assert.deepEqual(res.body.marcas, ['Nike Sport'])
+  const vacio = await request(buildApp(mockWoo)).get('/api/marcas').query({ q: '' }).expect(200)
+  assert.deepEqual(vacio.body.marcas, [])
 })
 
 test('GET /api/productos/:id/variaciones carga variaciones bajo demanda', async () => {

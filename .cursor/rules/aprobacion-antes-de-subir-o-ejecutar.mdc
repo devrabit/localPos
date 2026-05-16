@@ -1,0 +1,31 @@
+---
+description: Flujo del agente POS — fuente única PosAgent.md; SPEC → PLAN → aprobación → código → reinicio
+alwaysApply: true
+---
+
+# Reglas Agente (obligatorio)
+
+La definición completa del flujo está en:
+
+**`.cursor/IAPosApi/Agent/PosAgent.md`**
+
+Sigue **solo ese documento** para orden de trabajo y restricciones (SPEC, PLAN, skills, sin código sin aprobación).
+
+### Orden que debes aplicar
+
+1. **Generar SPEC** (`.md`, p. ej. bajo `.cursor/IAPosApi/Specs/`).
+2. **Generar PLAN** (`.md`).
+3. **Esperar** revisión del usuario y **aprobación explícita** (o cambios al SPEC/PLAN).
+4. **Generar CODE** (implementar según PLAN y skills indicadas en PosAgent.md).
+5. **Reiniciar el sitio** cuando proceda la entrega local (**solo** tras pasos 1–4 completados y si el usuario pidió ejecutar el entorno o forma parte de lo acordado).
+
+**No saltar pasos.** No implementar ni ejecutar terminal de proyecto antes de la **aprobación** del paso 3.
+
+### Memoria y skills (según PosAgent.md)
+
+- Memoria del proyecto: `.cursor/IAPosApi/Memory/Context.md` (si existe `ProjectContext.md`, usar el que indique PosAgent.md).
+- Skills: `.cursor/IAPosApi/Skills/` (`BackendNode.md`, `FrontentVue.md`, `WooCommerce.md`, etc.).
+
+### Subida / deploy
+
+Sin **`git push`**, **`npm run build`** (salvo PLAN aprobado), deploy ni comandos equivalentes hasta petición explícita del usuario **después** del flujo anterior o instrucción clara en el mensaje.
