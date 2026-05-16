@@ -7,6 +7,9 @@ const BarcodeView = () => import('../views/BarcodeView.vue')
 const HistorialSalidasView = () => import('../modules/salidas/views/HistorialSalidasView.vue')
 const SalidasView = () => import('../modules/salidas/views/SalidasView.vue')
 const AgotadosView = () => import('../modules/agotados/views/AgotadosView.vue')
+const AnotacionesListView = () => import('../modules/anotaciones/views/AnotacionesListView.vue')
+const AnotacionNuevaView = () => import('../modules/anotaciones/views/AnotacionNuevaView.vue')
+const AnotacionDetalleView = () => import('../modules/anotaciones/views/AnotacionDetalleView.vue')
 
 const router = createRouter({
   history: createWebHistory(),
@@ -45,6 +48,21 @@ const router = createRouter({
       path: '/agotados',
       name: 'agotados',
       component: AgotadosView,
+    },
+    {
+      path: '/anotaciones',
+      name: 'anotaciones',
+      component: AnotacionesListView,
+    },
+    {
+      path: '/anotaciones/nueva',
+      name: 'anotaciones-nueva',
+      component: AnotacionNuevaView,
+    },
+    {
+      path: '/anotaciones/:id',
+      name: 'anotaciones-detalle',
+      component: AnotacionDetalleView,
     },
   ],
 })

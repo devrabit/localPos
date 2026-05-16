@@ -1,3 +1,6 @@
+const fs = require('fs/promises')
+const os = require('os')
+const path = require('path')
 const test = require('node:test')
 const assert = require('node:assert')
 const express = require('express')
@@ -411,4 +414,114 @@ test('POST /api/orden efectivo con dinero insuficiente devuelve 400', async () =
     })
     .expect(400)
   assert.equal(res.body.error, 'El dinero es insuficiente')
+})
+
+function minimalMockWoo() {
+  return {
+    fetchProducts: async () => [],
+    fetchCustomers: async () => [],
+    createCustomer: async () => ({}),
+    createOrder: async () => ({}),
+  }
+}
+
+function buildAppWithTmpAnnotations(tmpPath) {
+  process.env.NARIPOS_ANNOTATIONS_FILE = tmpPath
+  delete require.cache[require.resolve('../src/services/annotationsStorage')]
+  delete require.cache[require.resolve('../src/routes/api')]
+  const createApiRouterFresh = require('../src/routes/api')
+  const app = express()
+  app.use(express.json())
+  app.use('/api', createApiRouterFresh(minimalMockWoo()))
+  app.use((error, _req, res, _next) => {
+    if (error?.name === 'ZodError') {
+      return res.status(400).json({ error: 'Invalid request payload' })
+    }
+    res.status(500).json({ error: error?.message || 'fail' })
+  })
+  return app
+}
+
+test('anotaciones: crear listar detalle comentario eliminar', async (t) => {
+  const tmp = path.join(
+    os.tmpdir(),
+    `naripos_ant_${Date.now()}_${Math.random().toString(36).slice(2)}.json`,
+  )
+  await fs.writeFile(tmp, '[]', 'utf8')
+  t.after(async () => {
+    delete process.env.NARIPOS_ANNOTATIONS_FILE
+    delete require.cache[require.resolve('../src/services/annotationsStorage')]
+    delete require.cache[require.resolve('../src/routes/api')]
+    try {
+      await fs.unlink(tmp)
+    } catch {
+      /* ok */
+    }
+  })
+  const app = buildAppWithTmpAnnotations(tmp)
+
+  const cre = await request(app)
+    .post('/api/anotaciones')
+    .send({
+      titulo: 'Pedido cliente X',
+      cliente: 'Maria',
+      recordar: true,
+      fechaRecordar: '2026-06-01T10:00',
+      marca: 'Acme',
+      productoId: 5,
+      productoNombre: 'Producto cinco',
+      descripcion: 'Llamar cuando llegue',
+    })
+    .expect(201)
+
+  assert.ok(cre.body.id)
+  assert.equal(cre.body.cliente, 'Maria')
+  assert.equal(cre.body.recordar, true)
+
+  const list = await request(app).get('/api/anotaciones').expect(200)
+  assert.equal(list.body.anotaciones.length, 1)
+  assert.equal(list.body.anotaciones[0].titulo, 'Pedido cliente X')
+
+  const id = cre.body.id
+  await request(app).get(`/api/anotaciones/${id}`).expect(200)
+
+  await request(app)
+    .post(`/api/anotaciones/${id}/comentarios`)
+    .send({ texto: 'Ok recibido' })
+    .expect(201)
+
+  const det2 = await request(app).get(`/api/anotaciones/${id}`).expect(200)
+  assert.equal(det2.body.comentarios.length, 1)
+
+  await request(app).delete(`/api/anotaciones/${id}`).expect(204)
+  await request(app).get(`/api/anotaciones/${id}`).expect(404)
+})
+
+test('POST /api/anotaciones sin recordar no guarda fechaRecordar', async (t) => {
+  const tmp = path.join(
+    os.tmpdir(),
+    `naripos_ant_fd_${Date.now()}_${Math.random().toString(36).slice(2)}.json`,
+  )
+  await fs.writeFile(tmp, '[]', 'utf8')
+  t.after(async () => {
+    delete process.env.NARIPOS_ANNOTATIONS_FILE
+    delete require.cache[require.resolve('../src/services/annotationsStorage')]
+    delete require.cache[require.resolve('../src/routes/api')]
+    try {
+      await fs.unlink(tmp)
+    } catch {
+      /* ok */
+    }
+  })
+  const app = buildAppWithTmpAnnotations(tmp)
+  const cre = await request(app)
+    .post('/api/anotaciones')
+    .send({
+      titulo: 'Solo titulo',
+      recordar: false,
+      fechaRecordar: '2026-06-01T10:00',
+      descripcion: '',
+    })
+    .expect(201)
+  assert.equal(cre.body.fechaRecordar, '')
 })

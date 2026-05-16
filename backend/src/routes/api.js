@@ -14,6 +14,7 @@ const {
 const { isVariableProductType } = require('../utils/wooProductType')
 const { env } = require('../config/env')
 const { createOutflow, listOutflows } = require('../services/outflowsStorage')
+const annotationsStorage = require('../services/annotationsStorage')
 
 const createCustomerSchema = z.object({
   nombre: z.string().min(2),
@@ -277,6 +278,21 @@ const createOutflowSchema = z.object({
 const salidasQuerySchema = z.object({
   fechaInicio: z.string().max(32).optional(),
   fechaFin: z.string().max(32).optional(),
+})
+
+const createAnnotationSchema = z.object({
+  titulo: z.string().trim().min(1, 'Titulo requerido'),
+  cliente: z.string().optional().default(''),
+  recordar: z.boolean().optional().default(false),
+  fechaRecordar: z.string().max(64).optional().default(''),
+  marca: z.string().optional().default(''),
+  productoId: z.number().int().positive().nullable().optional(),
+  productoNombre: z.string().optional().default(''),
+  descripcion: z.string().optional().default(''),
+})
+
+const annotationCommentSchema = z.object({
+  texto: z.string().trim().min(1, 'Comentario requerido'),
 })
 
 function normalizeDateBoundary(input, endOfDay = false) {
@@ -627,6 +643,78 @@ function createApiRouter(woo = defaultWoo) {
       const payload = createOutflowSchema.parse(req.body)
       const salida = await createOutflow(payload)
       res.status(201).json(salida)
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  router.get('/anotaciones', async (_req, res, next) => {
+    try {
+      const rows = await annotationsStorage.listAnnotations()
+      const anotaciones = rows.map((a) => ({
+        id: a.id,
+        titulo: a.titulo,
+        cliente: a.cliente || '',
+        marca: a.marca || '',
+        producto: a.productoNombre || '',
+        fecha: a.fechaCreacion || '',
+      }))
+      res.json({ anotaciones })
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  router.post('/anotaciones', async (req, res, next) => {
+    try {
+      const raw = createAnnotationSchema.parse(req.body)
+      const payload = {
+        ...raw,
+        cliente: String(raw.cliente || '').trim(),
+        marca: String(raw.marca || '').trim(),
+        productoNombre: String(raw.productoNombre || '').trim(),
+        descripcion: String(raw.descripcion || ''),
+        fechaRecordar: raw.recordar ? String(raw.fechaRecordar || '').trim() : '',
+      }
+      const created = await annotationsStorage.createAnnotation(payload)
+      res.status(201).json(created)
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  router.get('/anotaciones/:id', async (req, res, next) => {
+    try {
+      const row = await annotationsStorage.getAnnotation(req.params.id)
+      if (!row) {
+        return res.status(404).json({ error: 'Anotacion no encontrada' })
+      }
+      res.json(row)
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  router.delete('/anotaciones/:id', async (req, res, next) => {
+    try {
+      const ok = await annotationsStorage.deleteAnnotation(req.params.id)
+      if (!ok) {
+        return res.status(404).json({ error: 'Anotacion no encontrada' })
+      }
+      res.status(204).send()
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  router.post('/anotaciones/:id/comentarios', async (req, res, next) => {
+    try {
+      const { texto } = annotationCommentSchema.parse(req.body)
+      const updated = await annotationsStorage.addComment(req.params.id, texto)
+      if (!updated) {
+        return res.status(404).json({ error: 'Anotacion no encontrada' })
+      }
+      res.status(201).json(updated)
     } catch (error) {
       next(error)
     }
