@@ -24,6 +24,10 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  mixedTransferStr: {
+    type: String,
+    default: '',
+  },
   /** null si no aplica; negativo = insuficiente */
   changeMinor: {
     type: Number,
@@ -37,6 +41,18 @@ const props = defineProps({
     type: Boolean,
     default: true,
   },
+  mixedCashRequiredMinor: {
+    type: Number,
+    default: null,
+  },
+  mixedTransferParsed: {
+    type: Number,
+    default: null,
+  },
+  readyForCheckout: {
+    type: Boolean,
+    default: true,
+  },
 })
 
 const emit = defineEmits([
@@ -46,14 +62,18 @@ const emit = defineEmits([
   'checkout',
   'update:paymentMethod',
   'update:cashReceivedStr',
+  'update:mixedTransferStr',
   'quickCash',
 ])
 
-const showCashBlock = computed(() => props.paymentMethod === PAYMENT_METHODS.CASH)
+const showCashBlock = computed(
+  () => props.paymentMethod === PAYMENT_METHODS.CASH || props.paymentMethod === PAYMENT_METHODS.MIXED,
+)
+const showMixedBlock = computed(() => props.paymentMethod === PAYMENT_METHODS.MIXED)
 
 const cashInsufficient = computed(
   () =>
-    showCashBlock.value &&
+    (props.paymentMethod === PAYMENT_METHODS.CASH || props.paymentMethod === PAYMENT_METHODS.MIXED) &&
     props.cashReceivedParsed != null &&
     props.changeMinor != null &&
     props.changeMinor < 0,
@@ -61,7 +81,7 @@ const cashInsufficient = computed(
 
 const cashSufficient = computed(
   () =>
-    showCashBlock.value &&
+    (props.paymentMethod === PAYMENT_METHODS.CASH || props.paymentMethod === PAYMENT_METHODS.MIXED) &&
     props.cashReceivedParsed != null &&
     props.changeMinor != null &&
     props.changeMinor >= 0,
@@ -133,6 +153,19 @@ const cashSufficient = computed(
       </fieldset>
 
       <div v-if="showCashBlock" class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <div v-if="showMixedBlock" class="mb-3">
+          <label class="block text-sm font-semibold text-slate-800" for="mixed-transfer">Monto transferencia *</label>
+          <input
+            id="mixed-transfer"
+            type="text"
+            inputmode="decimal"
+            autocomplete="off"
+            placeholder="Ingresa el monto por transferencia"
+            class="mt-1 min-h-12 w-full rounded-lg border border-slate-300 px-3 py-2 text-base"
+            :value="mixedTransferStr"
+            @input="emit('update:mixedTransferStr', $event.target.value)"
+          />
+        </div>
         <label class="block text-sm font-semibold text-slate-800" for="cash-received">Dinero recibido *</label>
         <input
           id="cash-received"
@@ -160,6 +193,14 @@ const cashSufficient = computed(
             <dt class="text-slate-600">Total</dt>
             <dd class="font-medium text-slate-900">$ {{ formatMoneyEs(total) }}</dd>
           </div>
+          <div v-if="showMixedBlock && mixedTransferParsed != null" class="flex justify-between gap-2">
+            <dt class="text-slate-600">Transferencia</dt>
+            <dd class="font-medium text-slate-900">$ {{ formatMoneyEs(mixedTransferParsed) }}</dd>
+          </div>
+          <div v-if="showMixedBlock && mixedCashRequiredMinor != null" class="flex justify-between gap-2">
+            <dt class="text-slate-600">Efectivo requerido</dt>
+            <dd class="font-medium text-slate-900">$ {{ formatMoneyEs(mixedCashRequiredMinor / 100) }}</dd>
+          </div>
           <div v-if="cashReceivedParsed != null" class="flex justify-between gap-2">
             <dt class="text-slate-600">Recibido</dt>
             <dd class="font-medium text-slate-900">$ {{ formatMoneyEs(cashReceivedParsed) }}</dd>
@@ -183,7 +224,7 @@ const cashSufficient = computed(
       <button
         type="button"
         class="mt-3 min-h-14 w-full rounded-lg bg-indigo-600 px-4 py-4 text-lg font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-        :disabled="!items.length || checkoutLoading || !paymentMethod || !cashReadyForCheckout"
+        :disabled="!items.length || checkoutLoading || !paymentMethod || !readyForCheckout"
         @click="emit('checkout')"
       >
         {{ checkoutLoading ? 'Enviando...' : 'Confirmar venta' }}

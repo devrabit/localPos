@@ -46,7 +46,7 @@ function randomWooPassword() {
   return crypto.randomBytes(18).toString('base64url')
 }
 
-const paymentMethodEnum = z.enum(['EFECTIVO', 'TRANSFERENCIA'])
+const paymentMethodEnum = z.enum(['EFECTIVO', 'TRANSFERENCIA', 'MIXTO'])
 
 const createOrderSchema = z
   .object({
@@ -55,6 +55,8 @@ const createOrderSchema = z
     paymentMethod: paymentMethodEnum.optional(),
     cash_received: z.number().finite().optional(),
     cashReceived: z.number().finite().optional(),
+    mixed_transfer: z.number().finite().optional(),
+    mixedTransfer: z.number().finite().optional(),
   cliente: z
     .object({
       id: z.number().int().positive().optional(),
@@ -584,7 +586,11 @@ function createApiRouter(woo = defaultWoo) {
         set_paid: true,
         payment_method: selectedPaymentMethod === 'EFECTIVO' ? 'cod' : 'bacs',
         payment_method_title:
-          selectedPaymentMethod === 'EFECTIVO' ? 'Pago en efectivo' : 'Transferencia virtual',
+          selectedPaymentMethod === 'EFECTIVO'
+            ? 'Pago en efectivo'
+            : selectedPaymentMethod === 'MIXTO'
+              ? 'Pago mixto'
+              : 'Transferencia virtual',
         billing: {
           first_name: firstName,
           last_name: lastName,
@@ -615,6 +621,37 @@ function createApiRouter(woo = defaultWoo) {
         }
         const changeAmt = Math.round((cashNum - totalRounded) * 100) / 100
         orderBody.meta_data = [
+          { key: '_naripos_cash_received', value: String(cashNum) },
+          { key: '_naripos_change', value: String(changeAmt) },
+        ]
+      }
+
+      if (selectedPaymentMethod === 'MIXTO') {
+        const cashRaw = payload.cash_received ?? payload.cashReceived
+        const transferRaw = payload.mixed_transfer ?? payload.mixedTransfer
+        if (transferRaw == null || !Number.isFinite(Number(transferRaw))) {
+          return res.status(400).json({ error: 'Ingresa el monto de transferencia' })
+        }
+        if (cashRaw == null || !Number.isFinite(Number(cashRaw))) {
+          return res.status(400).json({ error: 'Ingresa el dinero recibido' })
+        }
+        const orderTotal = await sumOrderSubtotalFromItems(woo, payload.items)
+        const transferNum = Math.round(Number(transferRaw) * 100) / 100
+        if (transferNum < 0) {
+          return res.status(400).json({ error: 'La transferencia no puede ser negativa' })
+        }
+        const totalRounded = Math.round(orderTotal * 100) / 100
+        if (transferNum - totalRounded > 1e-9) {
+          return res.status(400).json({ error: 'La transferencia no puede superar el total' })
+        }
+        const cashNum = Math.round(Number(cashRaw) * 100) / 100
+        const cashRequired = Math.round((totalRounded - transferNum) * 100) / 100
+        if (cashNum + 1e-9 < cashRequired) {
+          return res.status(400).json({ error: 'El dinero es insuficiente' })
+        }
+        const changeAmt = Math.round((cashNum - cashRequired) * 100) / 100
+        orderBody.meta_data = [
+          { key: '_naripos_mixed_transfer', value: String(transferNum) },
           { key: '_naripos_cash_received', value: String(cashNum) },
           { key: '_naripos_change', value: String(changeAmt) },
         ]

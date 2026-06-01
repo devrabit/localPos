@@ -452,6 +452,58 @@ test('POST /api/orden efectivo con dinero insuficiente devuelve 400', async () =
   assert.equal(res.body.error, 'El dinero es insuficiente')
 })
 
+test('POST /api/orden mixto guarda metadatos de transferencia y cambio', async () => {
+  let captured
+  const mockWoo = {
+    fetchProducts: async () => [],
+    fetchCustomers: async () => [],
+    createCustomer: async () => ({}),
+    fetchProductById: async () => ({ id: 1, price: '100', regular_price: '100' }),
+    fetchProductVariations: async () => [],
+    createOrder: async (body) => {
+      captured = body
+      return { id: 301, status: 'completed', total: '100.00' }
+    },
+  }
+  await request(buildApp(mockWoo))
+    .post('/api/orden')
+    .send({
+      payment_method: 'MIXTO',
+      mixed_transfer: 70,
+      cash_received: 35,
+      items: [{ productId: 1, cantidad: 1 }],
+    })
+    .expect(201)
+
+  assert.equal(captured.payment_method, 'bacs')
+  assert.equal(captured.payment_method_title, 'Pago mixto')
+  const transfer = captured.meta_data.find((m) => m.key === '_naripos_mixed_transfer')
+  const change = captured.meta_data.find((m) => m.key === '_naripos_change')
+  assert.equal(transfer.value, '70')
+  assert.equal(change.value, '5')
+})
+
+test('POST /api/orden mixto con transferencia mayor al total devuelve 400', async () => {
+  const mockWoo = {
+    fetchProducts: async () => [],
+    fetchCustomers: async () => [],
+    createCustomer: async () => ({}),
+    fetchProductById: async () => ({ id: 1, price: '100', regular_price: '100' }),
+    fetchProductVariations: async () => [],
+    createOrder: async () => ({}),
+  }
+  const res = await request(buildApp(mockWoo))
+    .post('/api/orden')
+    .send({
+      payment_method: 'MIXTO',
+      mixed_transfer: 120,
+      cash_received: 0,
+      items: [{ productId: 1, cantidad: 1 }],
+    })
+    .expect(400)
+  assert.equal(res.body.error, 'La transferencia no puede superar el total')
+})
+
 function minimalMockWoo() {
   return {
     fetchProducts: async () => [],

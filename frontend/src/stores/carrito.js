@@ -10,11 +10,13 @@ export function lineKeyFor(productId, variationId) {
 export const PAYMENT_METHODS = {
   CASH: 'EFECTIVO',
   TRANSFER: 'TRANSFERENCIA',
+  MIXED: 'MIXTO',
 }
 
 export const PAYMENT_OPTIONS = [
   { value: PAYMENT_METHODS.CASH, label: 'Pago en efectivo' },
   { value: PAYMENT_METHODS.TRANSFER, label: 'Transferencia virtual' },
+  { value: PAYMENT_METHODS.MIXED, label: 'Mixto (transferencia + efectivo)' },
 ]
 
 export function paymentLabelFromValue(value) {
@@ -29,10 +31,13 @@ export const useCarritoStore = defineStore('carrito', () => {
   const paymentMethod = ref('')
   /** Monto recibido en efectivo (texto del input; spec cambio dinero) */
   const cashReceivedStr = ref('')
+  /** Monto aportado por transferencia cuando el metodo es mixto */
+  const mixedTransferStr = ref('')
 
   function setPaymentMethod(value) {
     paymentMethod.value = value
-    if (value !== PAYMENT_METHODS.CASH) cashReceivedStr.value = ''
+    if (value !== PAYMENT_METHODS.CASH && value !== PAYMENT_METHODS.MIXED) cashReceivedStr.value = ''
+    if (value !== PAYMENT_METHODS.MIXED) mixedTransferStr.value = ''
   }
 
   function addQuickCash(amount) {
@@ -146,11 +151,31 @@ export const useCarritoStore = defineStore('carrito', () => {
   const totalMinor = computed(() => moneyToMinor(total.value))
 
   const cashReceivedParsed = computed(() => parseCashReceivedInput(cashReceivedStr.value))
+  const mixedTransferParsed = computed(() => parseCashReceivedInput(mixedTransferStr.value))
+
+  const mixedTransferMinor = computed(() => {
+    if (paymentMethod.value !== PAYMENT_METHODS.MIXED) return null
+    const transfer = mixedTransferParsed.value
+    if (transfer == null) return null
+    return moneyToMinor(transfer)
+  })
+
+  const mixedCashRequiredMinor = computed(() => {
+    if (paymentMethod.value !== PAYMENT_METHODS.MIXED) return null
+    const transferMinor = mixedTransferMinor.value
+    if (transferMinor == null) return null
+    return totalMinor.value - transferMinor
+  })
 
   const changeMinorValue = computed(() => {
-    if (paymentMethod.value !== PAYMENT_METHODS.CASH) return null
+    if (paymentMethod.value !== PAYMENT_METHODS.CASH && paymentMethod.value !== PAYMENT_METHODS.MIXED) return null
     const rec = cashReceivedParsed.value
     if (rec == null) return null
+    if (paymentMethod.value === PAYMENT_METHODS.MIXED) {
+      const cashRequiredMinor = mixedCashRequiredMinor.value
+      if (cashRequiredMinor == null) return null
+      return changeMinor(cashRequiredMinor, moneyToMinor(rec))
+    }
     return changeMinor(totalMinor.value, moneyToMinor(rec))
   })
 
@@ -160,6 +185,20 @@ export const useCarritoStore = defineStore('carrito', () => {
     if (rec == null) return false
     return moneyToMinor(rec) >= totalMinor.value
   })
+
+  const mixedReadyForCheckout = computed(() => {
+    if (paymentMethod.value !== PAYMENT_METHODS.MIXED) return true
+    const transferMinor = mixedTransferMinor.value
+    if (transferMinor == null) return false
+    if (transferMinor < 0 || transferMinor > totalMinor.value) return false
+    const cashRequiredMinor = mixedCashRequiredMinor.value
+    if (cashRequiredMinor == null) return false
+    const rec = cashReceivedParsed.value
+    if (rec == null) return false
+    return moneyToMinor(rec) >= cashRequiredMinor
+  })
+
+  const readyForCheckout = computed(() => cashReadyForCheckout.value && mixedReadyForCheckout.value)
 
   async function crearOrden(cliente) {
     creatingOrder.value = true
@@ -178,6 +217,24 @@ export const useCarritoStore = defineStore('carrito', () => {
           throw new Error('El dinero es insuficiente')
         }
       }
+      if (paymentMethod.value === PAYMENT_METHODS.MIXED) {
+        const transfer = mixedTransferParsed.value
+        if (transfer == null) {
+          throw new Error('Ingresa el monto de transferencia')
+        }
+        const transferMinor = moneyToMinor(transfer)
+        if (transferMinor < 0 || transferMinor > totalMinor.value) {
+          throw new Error('La transferencia no puede superar el total')
+        }
+        const rec = cashReceivedParsed.value
+        if (rec == null) {
+          throw new Error('Ingresa el dinero recibido')
+        }
+        const cashRequiredMinor = totalMinor.value - transferMinor
+        if (moneyToMinor(rec) < cashRequiredMinor) {
+          throw new Error('El dinero es insuficiente')
+        }
+      }
       const payload = {
         payment_method: paymentMethod.value,
         paymentMethod: paymentMethod.value,
@@ -191,6 +248,14 @@ export const useCarritoStore = defineStore('carrito', () => {
         const rec = cashReceivedParsed.value
         payload.cash_received = rec
         payload.cashReceived = rec
+      }
+      if (paymentMethod.value === PAYMENT_METHODS.MIXED) {
+        const rec = cashReceivedParsed.value
+        const transfer = mixedTransferParsed.value
+        payload.cash_received = rec
+        payload.cashReceived = rec
+        payload.mixed_transfer = transfer
+        payload.mixedTransfer = transfer
       }
       if (
         cliente &&
@@ -211,10 +276,17 @@ export const useCarritoStore = defineStore('carrito', () => {
         total: i.precio * i.cantidad,
       }))
       const totalNum = items.value.reduce((acc, i) => acc + i.precio * i.cantidad, 0)
-      const recNum = paymentMethod.value === PAYMENT_METHODS.CASH ? cashReceivedParsed.value : null
+      const recNum =
+        paymentMethod.value === PAYMENT_METHODS.CASH || paymentMethod.value === PAYMENT_METHODS.MIXED
+          ? cashReceivedParsed.value
+          : null
+      const transferNum = paymentMethod.value === PAYMENT_METHODS.MIXED ? mixedTransferParsed.value : null
+      const effectiveCashBase =
+        paymentMethod.value === PAYMENT_METHODS.MIXED && transferNum != null ? totalNum - transferNum : totalNum
       const cambioNum =
-        paymentMethod.value === PAYMENT_METHODS.CASH && recNum != null
-          ? recNum - totalNum
+        (paymentMethod.value === PAYMENT_METHODS.CASH || paymentMethod.value === PAYMENT_METHODS.MIXED) &&
+        recNum != null
+          ? recNum - effectiveCashBase
           : null
       const cli = cliente || {}
       const { data } = await api.post('/orden', payload)
@@ -240,11 +312,17 @@ export const useCarritoStore = defineStore('carrito', () => {
               change: cambioNum,
             }
           : {}),
+        ...(transferNum != null
+          ? {
+              mixed_transfer: transferNum,
+            }
+          : {}),
       }
       orderSuccess.value = `Orden #${data.orderId} creada correctamente`
       limpiar()
       paymentMethod.value = ''
       cashReceivedStr.value = ''
+      mixedTransferStr.value = ''
       return data
     } catch (err) {
       orderError.value = err?.response?.data?.error || err?.message || 'No se pudo crear la orden'
@@ -263,10 +341,15 @@ export const useCarritoStore = defineStore('carrito', () => {
     setPaymentMethod,
     addQuickCash,
     cashReceivedStr,
+    mixedTransferStr,
     totalMinor,
     cashReceivedParsed,
+    mixedTransferParsed,
+    mixedCashRequiredMinor,
     changeMinorValue,
+    mixedReadyForCheckout,
     cashReadyForCheckout,
+    readyForCheckout,
     lastFactura,
     total,
     agregarProducto,

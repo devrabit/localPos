@@ -143,4 +143,34 @@ describe('useCarritoStore', () => {
     expect(store.items).toHaveLength(0)
     expect(store.paymentMethod).toBe('')
   })
+
+  it('crearOrden mixto envia transferencia y efectivo', async () => {
+    vi.mocked(api.post).mockResolvedValue({ data: { orderId: 88 } })
+    const store = useCarritoStore()
+    store.agregarProducto({ id: 3, nombre: 'Z', precio: 100, tipo: 'simple', stock: -1 })
+    store.paymentMethod = PAYMENT_METHODS.MIXED
+    store.mixedTransferStr = '70'
+    store.cashReceivedStr = '35'
+    await store.crearOrden(null)
+    expect(api.post).toHaveBeenCalledWith(
+      '/orden',
+      expect.objectContaining({
+        payment_method: PAYMENT_METHODS.MIXED,
+        mixed_transfer: 70,
+        mixedTransfer: 70,
+        cash_received: 35,
+        cashReceived: 35,
+      }),
+    )
+  })
+
+  it('crearOrden mixto falla si transferencia supera total', async () => {
+    const store = useCarritoStore()
+    store.agregarProducto({ id: 4, nombre: 'W', precio: 50, tipo: 'simple', stock: -1 })
+    store.paymentMethod = PAYMENT_METHODS.MIXED
+    store.mixedTransferStr = '60'
+    store.cashReceivedStr = '0'
+    await expect(store.crearOrden(null)).rejects.toThrow('La transferencia no puede superar el total')
+    expect(api.post).not.toHaveBeenCalled()
+  })
 })
