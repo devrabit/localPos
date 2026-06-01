@@ -1,34 +1,42 @@
+-- Ejecutar en Supabase: SQL Editor > New query > Run
+
 CREATE TABLE IF NOT EXISTS salidas (
-  id          VARCHAR(36) PRIMARY KEY,
+  id          TEXT PRIMARY KEY,
   motivo      VARCHAR(500) NOT NULL,
-  suma        DECIMAL(12,2) NOT NULL,
-  tipo_pago   ENUM('efectivo', 'transferencia_virtual') NOT NULL,
-  fecha       DATETIME(3) NOT NULL,
-  created_at  DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  INDEX idx_salidas_fecha (fecha)
+  suma        NUMERIC(12,2) NOT NULL,
+  tipo_pago   TEXT NOT NULL CHECK (tipo_pago IN ('efectivo', 'transferencia_virtual')),
+  fecha       TIMESTAMPTZ NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE INDEX IF NOT EXISTS idx_salidas_fecha ON salidas (fecha DESC);
 
 CREATE TABLE IF NOT EXISTS anotaciones (
-  id               VARCHAR(36) PRIMARY KEY,
+  id               TEXT PRIMARY KEY,
   titulo           VARCHAR(255) NOT NULL,
   cliente          VARCHAR(255) NOT NULL DEFAULT '',
-  recordar         TINYINT(1) NOT NULL DEFAULT 0,
+  recordar         BOOLEAN NOT NULL DEFAULT FALSE,
   fecha_recordar   VARCHAR(64) NOT NULL DEFAULT '',
   marca            VARCHAR(255) NOT NULL DEFAULT '',
-  producto_id      INT NULL,
+  producto_id      INTEGER NULL,
   producto_nombre  VARCHAR(500) NOT NULL DEFAULT '',
   descripcion      TEXT,
-  fecha_creacion   DATETIME(3) NOT NULL,
-  created_at       DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  INDEX idx_anotaciones_fecha_creacion (fecha_creacion)
+  fecha_creacion   TIMESTAMPTZ NOT NULL,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_anotaciones_fecha_creacion ON anotaciones (fecha_creacion DESC);
+
 CREATE TABLE IF NOT EXISTS anotacion_comentarios (
-  id              VARCHAR(36) PRIMARY KEY,
-  anotacion_id    VARCHAR(36) NOT NULL,
+  id              TEXT PRIMARY KEY,
+  anotacion_id    TEXT NOT NULL REFERENCES anotaciones(id) ON DELETE CASCADE,
   texto           TEXT NOT NULL,
-  fecha           DATETIME(3) NOT NULL,
-  INDEX idx_comentarios_anotacion (anotacion_id),
-  CONSTRAINT fk_comentarios_anotacion
-    FOREIGN KEY (anotacion_id) REFERENCES anotaciones(id) ON DELETE CASCADE
+  fecha           TIMESTAMPTZ NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_comentarios_anotacion ON anotacion_comentarios (anotacion_id);
+
+-- Backend POS: acceso vía API Node (publishable/anon key)
+ALTER TABLE salidas DISABLE ROW LEVEL SECURITY;
+ALTER TABLE anotaciones DISABLE ROW LEVEL SECURITY;
+ALTER TABLE anotacion_comentarios DISABLE ROW LEVEL SECURITY;

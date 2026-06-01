@@ -16,34 +16,32 @@ MVP de punto de venta web con frontend en Vue 3 y backend Node.js/Express para i
 
 1. Copia variables de entorno:
    - `cp backend/.env.example backend/.env`
-2. Completa credenciales WooCommerce y MySQL en `backend/.env`.
-3. Crea tablas:
+2. Completa credenciales WooCommerce y Supabase en `backend/.env`.
+3. Crea tablas en Supabase SQL Editor con `backend/db/schema.sql`.
+4. Verifica conexión:
    - `cd backend && npm run db:init`
-4. (Opcional) Migra JSON previo a MySQL:
+5. (Opcional) Migra JSON previo a Supabase:
    - `npm run db:migrate-json`
-5. Ejecuta:
+6. Ejecuta:
    - `npm install`
    - `npm run dev`
 
 Servidor por defecto: `http://localhost:3001`
 
-### MySQL (Salidas y Anotaciones)
+### Supabase (Salidas y Anotaciones)
 
-Los módulos **Salidas** y **Anotaciones** persisten en MySQL (no en archivos JSON).
+Los módulos **Salidas** y **Anotaciones** persisten en Supabase (PostgreSQL), no en archivos JSON.
 
 Variables requeridas en `backend/.env`:
 
 ```env
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=naripos
-DB_PASSWORD=secret
-DB_NAME=naripos
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
 
 Scripts:
 
-- `npm run db:init` — crea base y tablas desde `backend/db/schema.sql`
+- `npm run db:init` — verifica conexión a Supabase
 - `npm run db:migrate-json` — importa `backend/data/outflows.json` y `Anotaciones.json` si existen
 
 ## Frontend
@@ -75,11 +73,9 @@ El frontend consume `/api` y Vite hace proxy al backend local.
   - `WOO_URL=...`
   - `WOO_CONSUMER_KEY=...`
   - `WOO_CONSUMER_SECRET=...`
-  - `DB_HOST=...`
-  - `DB_USER=...`
-  - `DB_PASSWORD=...`
-  - `DB_NAME=...`
-- Tras crear la base MySQL en Hostinger, ejecuta `backend/db/schema.sql` (phpMyAdmin) o `npm run db:init`.
+  - `SUPABASE_URL=...`
+  - `SUPABASE_SERVICE_ROLE_KEY=...`
+- Ejecuta `backend/db/schema.sql` en Supabase SQL Editor antes del deploy.
 - Variable recomendada:
   - `CORS_ORIGIN=https://wheat-raven-739083.hostingersite.com`
 

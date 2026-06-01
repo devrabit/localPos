@@ -1,5 +1,5 @@
 const crypto = require('crypto')
-const { query } = require('../config/db')
+const { getSupabase, throwOnError } = require('../config/supabase')
 
 function newOutflowId() {
   if (typeof crypto.randomUUID === 'function') {
@@ -14,30 +14,39 @@ function mapOutflowRow(row) {
     motivo: row.motivo,
     suma: Number(row.suma),
     tipoPago: row.tipo_pago,
-    fecha: row.fecha instanceof Date ? row.fecha.toISOString() : new Date(row.fecha).toISOString(),
+    fecha: new Date(row.fecha).toISOString(),
   }
 }
 
 async function createOutflow({ motivo, suma, tipoPago }) {
   const id = newOutflowId()
-  const fecha = new Date()
-  await query(
-    `INSERT INTO salidas (id, motivo, suma, tipo_pago, fecha)
-     VALUES (?, ?, ?, ?, ?)`,
-    [id, motivo, suma, tipoPago, fecha],
-  )
+  const fecha = new Date().toISOString()
+  const supabase = getSupabase()
+  const { error } = await supabase.from('salidas').insert({
+    id,
+    motivo,
+    suma,
+    tipo_pago: tipoPago,
+    fecha,
+  })
+  throwOnError(error, 'createOutflow')
   return {
     id,
     motivo,
     suma,
     tipoPago,
-    fecha: fecha.toISOString(),
+    fecha,
   }
 }
 
 async function listOutflows() {
-  const rows = await query(`SELECT id, motivo, suma, tipo_pago, fecha FROM salidas ORDER BY fecha DESC`)
-  return rows.map(mapOutflowRow)
+  const supabase = getSupabase()
+  const { data, error } = await supabase
+    .from('salidas')
+    .select('id, motivo, suma, tipo_pago, fecha')
+    .order('fecha', { ascending: false })
+  throwOnError(error, 'listOutflows')
+  return (data || []).map(mapOutflowRow)
 }
 
 module.exports = {

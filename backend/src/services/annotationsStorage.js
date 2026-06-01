@@ -1,5 +1,5 @@
 const crypto = require('crypto')
-const { query } = require('../config/db')
+const { getSupabase, throwOnError } = require('../config/supabase')
 
 function newId(prefix) {
   if (typeof crypto.randomUUID === 'function') {
@@ -19,10 +19,7 @@ function mapAnnotationRow(row) {
     productoId: row.producto_id != null ? Number(row.producto_id) : null,
     productoNombre: row.producto_nombre || '',
     descripcion: row.descripcion || '',
-    fechaCreacion:
-      row.fecha_creacion instanceof Date
-        ? row.fecha_creacion.toISOString()
-        : new Date(row.fecha_creacion).toISOString(),
+    fechaCreacion: new Date(row.fecha_creacion).toISOString(),
     comentarios: [],
   }
 }
@@ -31,96 +28,111 @@ function mapCommentRow(row) {
   return {
     id: row.id,
     texto: row.texto,
-    fecha: row.fecha instanceof Date ? row.fecha.toISOString() : new Date(row.fecha).toISOString(),
+    fecha: new Date(row.fecha).toISOString(),
   }
 }
 
 async function loadCommentsForAnnotation(annotationId) {
-  const rows = await query(
-    `SELECT id, texto, fecha FROM anotacion_comentarios WHERE anotacion_id = ? ORDER BY fecha ASC`,
-    [annotationId],
-  )
-  return rows.map(mapCommentRow)
+  const supabase = getSupabase()
+  const { data, error } = await supabase
+    .from('anotacion_comentarios')
+    .select('id, texto, fecha')
+    .eq('anotacion_id', annotationId)
+    .order('fecha', { ascending: true })
+  throwOnError(error, 'loadCommentsForAnnotation')
+  return (data || []).map(mapCommentRow)
 }
 
 async function listAnnotations() {
-  const rows = await query(
-    `SELECT id, titulo, cliente, recordar, fecha_recordar, marca, producto_id, producto_nombre, descripcion, fecha_creacion
-     FROM anotaciones
-     ORDER BY fecha_creacion DESC`,
-  )
-  return rows.map(mapAnnotationRow)
+  const supabase = getSupabase()
+  const { data, error } = await supabase
+    .from('anotaciones')
+    .select(
+      'id, titulo, cliente, recordar, fecha_recordar, marca, producto_id, producto_nombre, descripcion, fecha_creacion',
+    )
+    .order('fecha_creacion', { ascending: false })
+  throwOnError(error, 'listAnnotations')
+  return (data || []).map(mapAnnotationRow)
 }
 
 async function getAnnotation(id) {
-  const rows = await query(
-    `SELECT id, titulo, cliente, recordar, fecha_recordar, marca, producto_id, producto_nombre, descripcion, fecha_creacion
-     FROM anotaciones
-     WHERE id = ?
-     LIMIT 1`,
-    [id],
-  )
-  if (!rows.length) return null
-  const record = mapAnnotationRow(rows[0])
+  const supabase = getSupabase()
+  const { data, error } = await supabase
+    .from('anotaciones')
+    .select(
+      'id, titulo, cliente, recordar, fecha_recordar, marca, producto_id, producto_nombre, descripcion, fecha_creacion',
+    )
+    .eq('id', id)
+    .maybeSingle()
+  throwOnError(error, 'getAnnotation')
+  if (!data) return null
+  const record = mapAnnotationRow(data)
   record.comentarios = await loadCommentsForAnnotation(id)
   return record
 }
 
 async function createAnnotation(payload) {
   const id = newId('ant')
-  const fechaCreacion = new Date()
-  await query(
-    `INSERT INTO anotaciones
-      (id, titulo, cliente, recordar, fecha_recordar, marca, producto_id, producto_nombre, descripcion, fecha_creacion)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      id,
-      payload.titulo,
-      payload.cliente || '',
-      payload.recordar ? 1 : 0,
-      payload.recordar && payload.fechaRecordar ? payload.fechaRecordar : '',
-      payload.marca || '',
-      payload.productoId != null && Number.isFinite(Number(payload.productoId))
-        ? Number(payload.productoId)
-        : null,
-      payload.productoNombre || '',
-      payload.descripcion || '',
-      fechaCreacion,
-    ],
-  )
-  return {
+  const fechaCreacion = new Date().toISOString()
+  const row = {
     id,
     titulo: payload.titulo,
     cliente: payload.cliente || '',
     recordar: Boolean(payload.recordar),
-    fechaRecordar: payload.recordar && payload.fechaRecordar ? payload.fechaRecordar : '',
+    fecha_recordar: payload.recordar && payload.fechaRecordar ? payload.fechaRecordar : '',
     marca: payload.marca || '',
-    productoId:
+    producto_id:
       payload.productoId != null && Number.isFinite(Number(payload.productoId))
         ? Number(payload.productoId)
         : null,
-    productoNombre: payload.productoNombre || '',
+    producto_nombre: payload.productoNombre || '',
     descripcion: payload.descripcion || '',
-    fechaCreacion: fechaCreacion.toISOString(),
+    fecha_creacion: fechaCreacion,
+  }
+  const supabase = getSupabase()
+  const { error } = await supabase.from('anotaciones').insert(row)
+  throwOnError(error, 'createAnnotation')
+  return {
+    id,
+    titulo: row.titulo,
+    cliente: row.cliente,
+    recordar: row.recordar,
+    fechaRecordar: row.fecha_recordar,
+    marca: row.marca,
+    productoId: row.producto_id,
+    productoNombre: row.producto_nombre,
+    descripcion: row.descripcion,
+    fechaCreacion,
     comentarios: [],
   }
 }
 
 async function deleteAnnotation(id) {
-  const result = await query(`DELETE FROM anotaciones WHERE id = ?`, [id])
-  return result.affectedRows > 0
+  const supabase = getSupabase()
+  const { data, error } = await supabase.from('anotaciones').delete().eq('id', id).select('id')
+  throwOnError(error, 'deleteAnnotation')
+  return (data?.length ?? 0) > 0
 }
 
 async function addComment(annotationId, texto) {
-  const rows = await query(`SELECT id FROM anotaciones WHERE id = ? LIMIT 1`, [annotationId])
-  if (!rows.length) return null
+  const supabase = getSupabase()
+  const { data: existing, error: findError } = await supabase
+    .from('anotaciones')
+    .select('id')
+    .eq('id', annotationId)
+    .maybeSingle()
+  throwOnError(findError, 'addComment.find')
+  if (!existing) return null
 
   const commentId = newId('cmt')
-  const fecha = new Date()
-  await query(
-    `INSERT INTO anotacion_comentarios (id, anotacion_id, texto, fecha) VALUES (?, ?, ?, ?)`,
-    [commentId, annotationId, texto.trim(), fecha],
-  )
+  const fecha = new Date().toISOString()
+  const { error } = await supabase.from('anotacion_comentarios').insert({
+    id: commentId,
+    anotacion_id: annotationId,
+    texto: texto.trim(),
+    fecha,
+  })
+  throwOnError(error, 'addComment.insert')
   return getAnnotation(annotationId)
 }
 
