@@ -513,10 +513,9 @@ function minimalMockWoo() {
   }
 }
 
-function buildAppWithTmpAnnotations(tmpPath) {
-  process.env.NARIPOS_ANNOTATIONS_FILE = tmpPath
-  delete require.cache[require.resolve('../src/services/annotationsStorage')]
-  delete require.cache[require.resolve('../src/routes/api')]
+function buildAppWithMemoryAnnotations() {
+  const { stubAnnotationsStorageInCache } = require('./helpers/memoryAnnotationsStorage')
+  stubAnnotationsStorageInCache()
   const createApiRouterFresh = require('../src/routes/api')
   const app = express()
   app.use(express.json())
@@ -531,22 +530,11 @@ function buildAppWithTmpAnnotations(tmpPath) {
 }
 
 test('anotaciones: crear listar detalle comentario eliminar', async (t) => {
-  const tmp = path.join(
-    os.tmpdir(),
-    `naripos_ant_${Date.now()}_${Math.random().toString(36).slice(2)}.json`,
-  )
-  await fs.writeFile(tmp, '[]', 'utf8')
-  t.after(async () => {
-    delete process.env.NARIPOS_ANNOTATIONS_FILE
-    delete require.cache[require.resolve('../src/services/annotationsStorage')]
-    delete require.cache[require.resolve('../src/routes/api')]
-    try {
-      await fs.unlink(tmp)
-    } catch {
-      /* ok */
-    }
+  const { clearAnnotationsStorageStub } = require('./helpers/memoryAnnotationsStorage')
+  t.after(() => {
+    clearAnnotationsStorageStub()
   })
-  const app = buildAppWithTmpAnnotations(tmp)
+  const app = buildAppWithMemoryAnnotations()
 
   const cre = await request(app)
     .post('/api/anotaciones')
@@ -586,22 +574,11 @@ test('anotaciones: crear listar detalle comentario eliminar', async (t) => {
 })
 
 test('POST /api/anotaciones sin recordar no guarda fechaRecordar', async (t) => {
-  const tmp = path.join(
-    os.tmpdir(),
-    `naripos_ant_fd_${Date.now()}_${Math.random().toString(36).slice(2)}.json`,
-  )
-  await fs.writeFile(tmp, '[]', 'utf8')
-  t.after(async () => {
-    delete process.env.NARIPOS_ANNOTATIONS_FILE
-    delete require.cache[require.resolve('../src/services/annotationsStorage')]
-    delete require.cache[require.resolve('../src/routes/api')]
-    try {
-      await fs.unlink(tmp)
-    } catch {
-      /* ok */
-    }
+  const { clearAnnotationsStorageStub } = require('./helpers/memoryAnnotationsStorage')
+  t.after(() => {
+    clearAnnotationsStorageStub()
   })
-  const app = buildAppWithTmpAnnotations(tmp)
+  const app = buildAppWithMemoryAnnotations()
   const cre = await request(app)
     .post('/api/anotaciones')
     .send({

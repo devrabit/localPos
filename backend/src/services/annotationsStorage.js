@@ -1,44 +1,5 @@
-const fs = require('fs/promises')
-const path = require('path')
 const crypto = require('crypto')
-
-const storageDir = path.resolve(__dirname, '../../data')
-
-function getStorageFile() {
-  if (process.env.NARIPOS_ANNOTATIONS_FILE) {
-    return path.resolve(process.env.NARIPOS_ANNOTATIONS_FILE)
-  }
-  return path.join(storageDir, 'Anotaciones.json')
-}
-
-async function ensureStorageFile() {
-  const storageFile = getStorageFile()
-  const dir = path.dirname(storageFile)
-  await fs.mkdir(dir, { recursive: true })
-  try {
-    await fs.access(storageFile)
-  } catch {
-    await fs.writeFile(storageFile, '[]', 'utf8')
-  }
-}
-
-async function readAnnotations() {
-  await ensureStorageFile()
-  const storageFile = getStorageFile()
-  try {
-    const raw = await fs.readFile(storageFile, 'utf8')
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
-}
-
-async function writeAnnotations(items) {
-  await ensureStorageFile()
-  const storageFile = getStorageFile()
-  await fs.writeFile(storageFile, JSON.stringify(items, null, 2), 'utf8')
-}
+const { query } = require('../config/db')
 
 function newId(prefix) {
   if (typeof crypto.randomUUID === 'function') {
@@ -47,24 +8,88 @@ function newId(prefix) {
   return `${prefix}_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`
 }
 
+function mapAnnotationRow(row) {
+  return {
+    id: row.id,
+    titulo: row.titulo,
+    cliente: row.cliente || '',
+    recordar: Boolean(row.recordar),
+    fechaRecordar: row.fecha_recordar || '',
+    marca: row.marca || '',
+    productoId: row.producto_id != null ? Number(row.producto_id) : null,
+    productoNombre: row.producto_nombre || '',
+    descripcion: row.descripcion || '',
+    fechaCreacion:
+      row.fecha_creacion instanceof Date
+        ? row.fecha_creacion.toISOString()
+        : new Date(row.fecha_creacion).toISOString(),
+    comentarios: [],
+  }
+}
+
+function mapCommentRow(row) {
+  return {
+    id: row.id,
+    texto: row.texto,
+    fecha: row.fecha instanceof Date ? row.fecha.toISOString() : new Date(row.fecha).toISOString(),
+  }
+}
+
+async function loadCommentsForAnnotation(annotationId) {
+  const rows = await query(
+    `SELECT id, texto, fecha FROM anotacion_comentarios WHERE anotacion_id = ? ORDER BY fecha ASC`,
+    [annotationId],
+  )
+  return rows.map(mapCommentRow)
+}
+
 async function listAnnotations() {
-  const items = await readAnnotations()
-  return [...items].sort((a, b) => {
-    const ta = new Date(a.fechaCreacion || 0).getTime()
-    const tb = new Date(b.fechaCreacion || 0).getTime()
-    return tb - ta
-  })
+  const rows = await query(
+    `SELECT id, titulo, cliente, recordar, fecha_recordar, marca, producto_id, producto_nombre, descripcion, fecha_creacion
+     FROM anotaciones
+     ORDER BY fecha_creacion DESC`,
+  )
+  return rows.map(mapAnnotationRow)
 }
 
 async function getAnnotation(id) {
-  const items = await readAnnotations()
-  return items.find((x) => x.id === id) || null
+  const rows = await query(
+    `SELECT id, titulo, cliente, recordar, fecha_recordar, marca, producto_id, producto_nombre, descripcion, fecha_creacion
+     FROM anotaciones
+     WHERE id = ?
+     LIMIT 1`,
+    [id],
+  )
+  if (!rows.length) return null
+  const record = mapAnnotationRow(rows[0])
+  record.comentarios = await loadCommentsForAnnotation(id)
+  return record
 }
 
 async function createAnnotation(payload) {
-  const items = await readAnnotations()
-  const record = {
-    id: newId('ant'),
+  const id = newId('ant')
+  const fechaCreacion = new Date()
+  await query(
+    `INSERT INTO anotaciones
+      (id, titulo, cliente, recordar, fecha_recordar, marca, producto_id, producto_nombre, descripcion, fecha_creacion)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      id,
+      payload.titulo,
+      payload.cliente || '',
+      payload.recordar ? 1 : 0,
+      payload.recordar && payload.fechaRecordar ? payload.fechaRecordar : '',
+      payload.marca || '',
+      payload.productoId != null && Number.isFinite(Number(payload.productoId))
+        ? Number(payload.productoId)
+        : null,
+      payload.productoNombre || '',
+      payload.descripcion || '',
+      fechaCreacion,
+    ],
+  )
+  return {
+    id,
     titulo: payload.titulo,
     cliente: payload.cliente || '',
     recordar: Boolean(payload.recordar),
@@ -76,36 +101,27 @@ async function createAnnotation(payload) {
         : null,
     productoNombre: payload.productoNombre || '',
     descripcion: payload.descripcion || '',
-    fechaCreacion: new Date().toISOString(),
+    fechaCreacion: fechaCreacion.toISOString(),
     comentarios: [],
   }
-  items.unshift(record)
-  await writeAnnotations(items)
-  return record
 }
 
 async function deleteAnnotation(id) {
-  const items = await readAnnotations()
-  const next = items.filter((x) => x.id !== id)
-  if (next.length === items.length) return false
-  await writeAnnotations(next)
-  return true
+  const result = await query(`DELETE FROM anotaciones WHERE id = ?`, [id])
+  return result.affectedRows > 0
 }
 
 async function addComment(annotationId, texto) {
-  const items = await readAnnotations()
-  const idx = items.findIndex((x) => x.id === annotationId)
-  if (idx === -1) return null
-  const comment = {
-    id: newId('cmt'),
-    texto: texto.trim(),
-    fecha: new Date().toISOString(),
-  }
-  const row = items[idx]
-  const comentarios = Array.isArray(row.comentarios) ? [...row.comentarios, comment] : [comment]
-  items[idx] = { ...row, comentarios }
-  await writeAnnotations(items)
-  return items[idx]
+  const rows = await query(`SELECT id FROM anotaciones WHERE id = ? LIMIT 1`, [annotationId])
+  if (!rows.length) return null
+
+  const commentId = newId('cmt')
+  const fecha = new Date()
+  await query(
+    `INSERT INTO anotacion_comentarios (id, anotacion_id, texto, fecha) VALUES (?, ?, ?, ?)`,
+    [commentId, annotationId, texto.trim(), fecha],
+  )
+  return getAnnotation(annotationId)
 }
 
 module.exports = {

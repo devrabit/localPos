@@ -17,8 +17,14 @@ app.use(
 )
 app.use(express.json({ limit: '2mb' }))
 
-app.get('/health', (_req, res) => {
-  res.json({ ok: true })
+app.get('/health', async (_req, res) => {
+  try {
+    const { ping } = require('./config/db')
+    await ping()
+    res.json({ ok: true, db: true })
+  } catch {
+    res.status(503).json({ ok: false, db: false })
+  }
 })
 
 app.post('/print', postPrintHandler)
