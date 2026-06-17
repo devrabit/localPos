@@ -10,17 +10,11 @@ const env = {
   corsOrigin: (process.env.CORS_ORIGIN || '*').trim(),
   /** Woo REST: any | draft | pending | private | publish (por defecto any = todos los visibles para la API) */
   wooProductsStatus: (process.env.WOO_PRODUCTS_STATUS || 'any').trim(),
-  supabaseUrl:
-    process.env.SUPABASE_URL ||
-    process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    '',
-  supabaseKey:
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_SECRET_KEY ||
-    process.env.SUPABASE_ANON_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    '',
+  dbHost: process.env.DB_HOST || 'localhost',
+  dbPort: Number(process.env.DB_PORT || 3306),
+  dbUser: process.env.DB_USER || '',
+  dbPassword: process.env.DB_PASSWORD || '',
+  dbName: process.env.DB_NAME || '',
 }
 
 function assertEnv() {
@@ -28,12 +22,9 @@ function assertEnv() {
   if (!env.wooUrl) missing.push('WOO_URL')
   if (!env.wooConsumerKey) missing.push('WOO_CONSUMER_KEY')
   if (!env.wooConsumerSecret) missing.push('WOO_CONSUMER_SECRET')
-  if (!env.supabaseUrl) missing.push('SUPABASE_URL (o NEXT_PUBLIC_SUPABASE_URL)')
-  if (!env.supabaseKey) {
-    missing.push(
-      'SUPABASE_SERVICE_ROLE_KEY (recomendado) o NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
-    )
-  }
+  if (!env.dbUser) missing.push('DB_USER')
+  if (!env.dbPassword) missing.push('DB_PASSWORD')
+  if (!env.dbName) missing.push('DB_NAME')
   if (missing.length) {
     throw new Error(`Missing env vars: ${missing.join(', ')}`)
   }

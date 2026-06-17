@@ -16,33 +16,34 @@ MVP de punto de venta web con frontend en Vue 3 y backend Node.js/Express para i
 
 1. Copia variables de entorno:
    - `cp backend/.env.example backend/.env`
-2. Completa credenciales WooCommerce y Supabase en `backend/.env`.
-3. Crea tablas en Supabase SQL Editor con `backend/db/schema.sql`.
-4. Verifica conexión:
-   - `cd backend && npm run db:init`
-5. (Opcional) Migra JSON previo a Supabase:
-   - `npm run db:migrate-json`
-6. Ejecuta:
+2. Completa credenciales WooCommerce y MySQL en `backend/.env`.
+3. Crea tablas con `cd backend && npm run db:init`.
+4. (Opcional) Migra datos previos desde Supabase:
+   - `npm run db:migrate-supabase`
+5. Ejecuta:
    - `npm install`
    - `npm run dev`
 
 Servidor por defecto: `http://localhost:3001`
 
-### Supabase (Salidas y Anotaciones)
+### MySQL (Salidas y Anotaciones)
 
-Los módulos **Salidas** y **Anotaciones** persisten en Supabase (PostgreSQL), no en archivos JSON.
+Los módulos **Salidas** y **Anotaciones** persisten en MySQL (Hostinger).
 
 Variables requeridas en `backend/.env`:
 
 ```env
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+DB_HOST=195.35.61.93
+DB_PORT=3306
+DB_USER=u505924778_acarreno
+DB_PASSWORD=your_mysql_password
+DB_NAME=u505924778_nariPos
 ```
 
 Scripts:
 
-- `npm run db:init` — verifica conexión a Supabase
-- `npm run db:migrate-json` — importa `backend/data/outflows.json` y `Anotaciones.json` si existen
+- `npm run db:init` — aplica schema y verifica conexión MySQL
+- `npm run db:migrate-supabase` — importa datos desde Supabase (one-shot)
 
 ## Frontend
 
@@ -73,9 +74,11 @@ El frontend consume `/api` y Vite hace proxy al backend local.
   - `WOO_URL=...`
   - `WOO_CONSUMER_KEY=...`
   - `WOO_CONSUMER_SECRET=...`
-  - `SUPABASE_URL=...`
-  - `SUPABASE_SERVICE_ROLE_KEY=...`
-- Ejecuta `backend/db/schema.sql` en Supabase SQL Editor antes del deploy.
+  - `DB_HOST=...`
+  - `DB_USER=...`
+  - `DB_PASSWORD=...`
+  - `DB_NAME=nariPos`
+- Ejecuta `npm run db:init` antes del deploy (o `backend/db/schema.sql` en phpMyAdmin).
 - Variable recomendada:
   - `CORS_ORIGIN=https://wheat-raven-739083.hostingersite.com`
 

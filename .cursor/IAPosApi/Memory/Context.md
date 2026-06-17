@@ -6,7 +6,7 @@
 
 - Frontend: Vue 3 + Pinia + Tailwind
 - Backend: Node.js + Express
-- DB: Supabase (PostgreSQL)
+- DB: MySQL (Hostinger)
 - Integración: WooCommerce API
 
 ---
