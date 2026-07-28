@@ -7,6 +7,7 @@ const { postPrintHandler } = require('./routes/print')
 const wooClient = require('./services/wooClient')
 const { formatWooError } = require('./utils/wooErrors')
 const { assertEnv, env } = require('./config/env')
+const { ensureSchema } = require('./db/ensureSchema')
 
 const app = express()
 
@@ -69,6 +70,15 @@ app.use((error, _req, res, _next) => {
 
 function start() {
   assertEnv()
+  ensureSchema()
+    .then(() => {
+      // eslint-disable-next-line no-console
+      console.log('MySQL schema OK (CREATE IF NOT EXISTS).')
+    })
+    .catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error('MySQL schema ensure failed:', err?.message || err)
+    })
   app.listen(env.port, () => {
     // eslint-disable-next-line no-console
     console.log(`Backend running at http://localhost:${env.port}`)
