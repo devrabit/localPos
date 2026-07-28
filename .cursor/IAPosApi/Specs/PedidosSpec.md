@@ -95,7 +95,7 @@ Existe más de un pedido (o cero / uno; la UI debe manejarlos).
 1. `POST` al backend → persiste cabecera + ítems en MySQL.
 2. Respuesta con el pedido creado (`id`, datos, ítems, estado).
 3. UI: éxito + botón **Descargar PDF**.
-4. El PDF incluye: título Pedido, fecha, dirigido a, estado, tabla de ítems (nombre, referencia, cantidad, descripción).
+4. El PDF incluye: imagen de encabezado (Nari Universe), título Pedido, fecha, dirigido a, tabla de ítems (nombre, referencia, cantidad, descripción). **No** incluye el campo estado.
 
 ---
 

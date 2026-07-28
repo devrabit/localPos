@@ -86,6 +86,8 @@
 
 - Util `frontend/src/modules/pedidos/utils/pedidoPdf.js`
 - Usa `printHtmlInIframe` de `invoicePrint.js` (**sin `window.open`**).
+- Encabezado: `frontend/public/pedido-header.png` (Nari Universe), embebido en el HTML para impresión fiable.
+- **Sin campo estado** en el PDF.
 - El diálogo del navegador permite “Guardar como PDF”.
 
 ---
