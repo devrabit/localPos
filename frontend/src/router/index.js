@@ -10,6 +10,9 @@ const AgotadosView = () => import('../modules/agotados/views/AgotadosView.vue')
 const AnotacionesListView = () => import('../modules/anotaciones/views/AnotacionesListView.vue')
 const AnotacionNuevaView = () => import('../modules/anotaciones/views/AnotacionNuevaView.vue')
 const AnotacionDetalleView = () => import('../modules/anotaciones/views/AnotacionDetalleView.vue')
+const PedidosListView = () => import('../modules/pedidos/views/PedidosListView.vue')
+const PedidoNuevoView = () => import('../modules/pedidos/views/PedidoNuevoView.vue')
+const PedidoDetalleView = () => import('../modules/pedidos/views/PedidoDetalleView.vue')
 
 const router = createRouter({
   history: createWebHistory(),
@@ -63,6 +66,21 @@ const router = createRouter({
       path: '/anotaciones/:id',
       name: 'anotaciones-detalle',
       component: AnotacionDetalleView,
+    },
+    {
+      path: '/pedidos',
+      name: 'pedidos',
+      component: PedidosListView,
+    },
+    {
+      path: '/pedidos/nuevo',
+      name: 'pedidos-nuevo',
+      component: PedidoNuevoView,
+    },
+    {
+      path: '/pedidos/:id',
+      name: 'pedidos-detalle',
+      component: PedidoDetalleView,
     },
   ],
 })

@@ -22,6 +22,7 @@
   - tarjeta
 - Cálculo de cambio
 - Historial de ventas
+- Pedidos internos (MySQL only; no WordPress)
 
 ---
 

@@ -15,6 +15,7 @@ const { isVariableProductType } = require('../utils/wooProductType')
 const { env } = require('../config/env')
 const { createOutflow, listOutflows } = require('../services/outflowsStorage')
 const annotationsStorage = require('../services/annotationsStorage')
+const pedidosStorage = require('../services/pedidosStorage')
 
 const createCustomerSchema = z.object({
   nombre: z.string().min(2),
@@ -304,6 +305,34 @@ const createAnnotationSchema = z.object({
 
 const annotationCommentSchema = z.object({
   texto: z.string().trim().min(1, 'Comentario requerido'),
+})
+
+const pedidosListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+})
+
+const createPedidoSchema = z.object({
+  dirigidoA: z.string().trim().min(1, 'Dirigido a requerido'),
+  items: z
+    .array(
+      z.object({
+        nombreProducto: z.string().trim().min(1, 'Nombre del producto requerido'),
+        referencia: z.string().trim().min(1, 'Referencia requerida'),
+        cantidad: z.coerce.number().int().positive('Cantidad debe ser >= 1'),
+        descripcion: z.string().optional().default(''),
+      }),
+    )
+    .min(1, 'Al menos un producto'),
+})
+
+const updatePedidoEstadoSchema = z.object({
+  estado: z.enum([
+    'en_proceso',
+    'enviado_al_proveedor',
+    'recibido',
+    'subido_al_sitio',
+  ]),
 })
 
 function normalizeDateBoundary(input, endOfDay = false) {
@@ -784,6 +813,67 @@ function createApiRouter(woo = defaultWoo) {
       }
       res.status(201).json(updated)
     } catch (error) {
+      next(error)
+    }
+  })
+
+  // Pedidos internos (MySQL only — no WordPress/WooCommerce)
+  router.get('/pedidos', async (req, res, next) => {
+    try {
+      const parsed = pedidosListQuerySchema.parse(req.query)
+      const data = await pedidosStorage.listPedidos(parsed)
+      res.json(data)
+    } catch (error) {
+      if (error?.name === 'ZodError') {
+        return res.status(400).json({ error: 'Parametros de paginacion invalidos' })
+      }
+      next(error)
+    }
+  })
+
+  router.post('/pedidos', async (req, res, next) => {
+    try {
+      const payload = createPedidoSchema.parse(req.body)
+      const created = await pedidosStorage.createPedido({
+        dirigidoA: payload.dirigidoA,
+        items: payload.items.map((it) => ({
+          ...it,
+          descripcion: String(it.descripcion || '').trim(),
+        })),
+      })
+      res.status(201).json(created)
+    } catch (error) {
+      if (error?.name === 'ZodError') {
+        return res.status(400).json({ error: error.issues?.[0]?.message || 'Datos invalidos' })
+      }
+      next(error)
+    }
+  })
+
+  router.get('/pedidos/:id', async (req, res, next) => {
+    try {
+      const row = await pedidosStorage.getPedido(req.params.id)
+      if (!row) {
+        return res.status(404).json({ error: 'Pedido no encontrado' })
+      }
+      res.json(row)
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  router.patch('/pedidos/:id', async (req, res, next) => {
+    try {
+      const { estado } = updatePedidoEstadoSchema.parse(req.body)
+      const updated = await pedidosStorage.updatePedidoEstado(req.params.id, estado)
+      if (!updated) {
+        return res.status(404).json({ error: 'Pedido no encontrado' })
+      }
+      res.json(updated)
+    } catch (error) {
+      if (error?.name === 'ZodError' || error?.status === 400) {
+        return res.status(400).json({ error: error.message || 'Estado invalido' })
+      }
       next(error)
     }
   })
