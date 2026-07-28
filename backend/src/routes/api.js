@@ -129,6 +129,13 @@ function mapVariationToDto(v, parentName, parentId) {
   }
 }
 
+function imageFromWooProduct(p) {
+  const src = p?.images?.[0]?.src
+  if (typeof src !== 'string') return null
+  const trimmed = src.trim()
+  return trimmed || null
+}
+
 function mapProductDto(p, variaciones = []) {
   const tipo = isVariableProductType(p.type) ? 'variable' : 'simple'
   const dto = {
@@ -139,6 +146,7 @@ function mapProductDto(p, variaciones = []) {
     stock: stockFromWooEntity(p),
     sku: skuFromEntity(p),
     marca: extractMarcaFromWooProduct(p),
+    imagen: imageFromWooProduct(p),
     variaciones,
   }
   if (tipo === 'variable' && variaciones.length) {
