@@ -1,4 +1,4 @@
-import{n as e}from"./invoicePrint-Lv67RAg3.js";import{n as t,r as n}from"./pedidoEstados-C4nMqb9I.js";function r(r){let i=e(r.id);return`<!DOCTYPE html>
+import{i as e,n as t}from"./invoicePrint-CKet0WWx.js";import{n,r}from"./pedidoEstados-C4nMqb9I.js";function i(e){let i=t(e.id);return`<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="utf-8"/>
@@ -19,9 +19,9 @@ import{n as e}from"./invoicePrint-Lv67RAg3.js";import{n as t,r as n}from"./pedid
 <body>
   <h1>Pedido</h1>
   <p><strong>ID:</strong> ${i}</p>
-  <p><strong>Fecha:</strong> ${e(n(r.fechaCreacion))}</p>
-  <p><strong>Dirigido a:</strong> ${e(r.dirigidoA||`-`)}</p>
-  <p><strong>Estado:</strong> ${e(t(r.estado))}</p>
+  <p><strong>Fecha:</strong> ${t(r(e.fechaCreacion))}</p>
+  <p><strong>Dirigido a:</strong> ${t(e.dirigidoA||`-`)}</p>
+  <p><strong>Estado:</strong> ${t(n(e.estado))}</p>
   <table>
     <thead>
       <tr>
@@ -32,14 +32,14 @@ import{n as e}from"./invoicePrint-Lv67RAg3.js";import{n as t,r as n}from"./pedid
       </tr>
     </thead>
     <tbody>
-      ${(r.items||[]).map(t=>`
+      ${(e.items||[]).map(e=>`
     <tr>
-      <td>${e(t.nombreProducto)}</td>
-      <td>${e(t.referencia)}</td>
-      <td class="num">${e(String(t.cantidad))}</td>
-      <td>${e(t.descripcion||``)}</td>
+      <td>${t(e.nombreProducto)}</td>
+      <td>${t(e.referencia)}</td>
+      <td class="num">${t(String(e.cantidad))}</td>
+      <td>${t(e.descripcion||``)}</td>
     </tr>`).join(``)||`<tr><td colspan="4">Sin items</td></tr>`}
     </tbody>
   </table>
 </body>
-</html>`}function i(e){let t=r(e),n=window.open(``,`_blank`,`noopener,noreferrer,width=900,height=700`);if(!n)throw Error(`El navegador bloqueo la ventana de impresion`);n.document.open(),n.document.write(t),n.document.close(),n.focus(),setTimeout(()=>{n.print()},250)}export{i as t};
+</html>`}async function a(t){await e(i(t))}export{a as t};
