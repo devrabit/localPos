@@ -1,4 +1,4 @@
-import { escapeHtml } from '../../../utils/invoicePrint'
+import { escapeHtml, printHtmlInIframe } from '../../../utils/invoicePrint'
 import { etiquetaEstado, formatFechaPedido } from '../pedidoEstados'
 
 function buildPedidoDocumentHtml(pedido) {
@@ -60,18 +60,8 @@ function buildPedidoDocumentHtml(pedido) {
 </html>`
 }
 
-/** Abre diálogo de impresión / Guardar como PDF del navegador. */
-export function descargarPedidoPdf(pedido) {
+/** Imprime / Guardar como PDF sin window.open (iframe oculto). */
+export async function descargarPedidoPdf(pedido) {
   const html = buildPedidoDocumentHtml(pedido)
-  const w = window.open('', '_blank', 'noopener,noreferrer,width=900,height=700')
-  if (!w) {
-    throw new Error('El navegador bloqueo la ventana de impresion')
-  }
-  w.document.open()
-  w.document.write(html)
-  w.document.close()
-  w.focus()
-  setTimeout(() => {
-    w.print()
-  }, 250)
+  await printHtmlInIframe(html)
 }

@@ -84,14 +84,9 @@
 
 ## 4. PDF
 
-**Opción preferida (alineada a factura / print del POS):**
-
-- Util `frontend/src/utils/pedidoPdf.js`:
-  - Abre ventana / genera HTML del pedido
-  - Dispara impresión / “Guardar como PDF” del navegador
-  - O usa librería mínima si el equipo prefiere archivo `.pdf` directo (evaluar `jspdf` solo si print HTML no basta)
-
-**Decisión en implementación:** empezar con HTML + `window.print` (cero deps); si el usuario exige archivo PDF binario, añadir `jspdf` en follow-up.
+- Util `frontend/src/modules/pedidos/utils/pedidoPdf.js`
+- Usa `printHtmlInIframe` de `invoicePrint.js` (**sin `window.open`**).
+- El diálogo del navegador permite “Guardar como PDF”.
 
 ---
 

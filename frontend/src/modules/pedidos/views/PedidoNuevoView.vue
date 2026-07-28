@@ -106,10 +106,10 @@ async function generarPedido() {
   }
 }
 
-function onDescargarPdf() {
+async function onDescargarPdf() {
   if (!pedidoCreado.value) return
   try {
-    descargarPedidoPdf(pedidoCreado.value)
+    await descargarPedidoPdf(pedidoCreado.value)
   } catch (err) {
     error.value = err?.message || 'No se pudo abrir el PDF'
   }

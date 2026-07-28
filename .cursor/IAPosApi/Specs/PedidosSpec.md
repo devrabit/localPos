@@ -183,8 +183,8 @@ Stack: Vue 3 + Pinia + Tailwind + Axios (mismo patrón que anotaciones / histori
 ## PDF
 
 - Generación **en el cliente** tras guardar (y desde detalle), sin endpoint PDF obligatorio en v1.
-- Enfoque: documento HTML imprimible / descarga PDF vía librería ligera o `window.print` con layout dedicado.
-- El PLAN fijará la librería concreta (preferir una dependencia pequeña o patrón ya usado en el repo para impresión).
+- **Sin `window.open`:** usar impresión vía iframe oculto (mismo patrón que facturas / `printHtmlInIframe`), para no depender de popups del navegador.
+- El usuario elige “Guardar como PDF” en el diálogo de impresión del sistema.
 
 ---
 

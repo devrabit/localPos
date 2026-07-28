@@ -49,10 +49,10 @@ async function guardarEstado() {
   }
 }
 
-function onDescargarPdf() {
+async function onDescargarPdf() {
   if (!pedido.value) return
   try {
-    descargarPedidoPdf(pedido.value)
+    await descargarPedidoPdf(pedido.value)
   } catch (err) {
     error.value = err?.message || 'No se pudo abrir el PDF'
   }
