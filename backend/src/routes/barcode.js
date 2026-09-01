@@ -3,6 +3,7 @@ const express = require('express')
 const bwipjs = require('bwip-js')
 const { z } = require('zod')
 const { validateBarcodeText } = require('../utils/barcodeValidation')
+const { invalidateProductosScanCache } = require('../utils/productScan')
 
 const generateSchema = z.object({
   text: z.string().min(1).max(200),
@@ -132,6 +133,7 @@ function createBarcodeRouter(woo) {
         return res.status(400).json({ error: validated.error })
       }
       await woo.updateProductSku(payload.productId, validated.text)
+      invalidateProductosScanCache()
       res.json({ ok: true, productId: payload.productId, sku: validated.text, barcode: validated.text })
     } catch (error) {
       next(error)
