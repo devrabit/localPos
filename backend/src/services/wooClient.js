@@ -1,7 +1,14 @@
 const axios = require('axios')
+const http = require('http')
+const https = require('https')
 const { env } = require('../config/env')
 
-const LIST_TIMEOUT_MS = 120000
+const LIST_TIMEOUT_MS = 30000
+/** Consulta indexada en Woo (wc_product_meta_lookup): si tarda mas, no vale la pena esperar. */
+const LOOKUP_TIMEOUT_MS = 10000
+
+/** Reutilizar sockets: el escaneo dispara varias peticiones seguidas al mismo host. */
+const agentOptions = { keepAlive: true, maxSockets: 32 }
 
 const wooClient = axios.create({
   baseURL: `${env.wooUrl.replace(/\/$/, '')}/wp-json/wc/v3`,
@@ -10,6 +17,8 @@ const wooClient = axios.create({
     password: env.wooConsumerSecret,
   },
   timeout: 15000,
+  httpAgent: new http.Agent(agentOptions),
+  httpsAgent: new https.Agent(agentOptions),
 })
 
 const PER_PAGE = 100
@@ -30,20 +39,40 @@ async function fetchAllPages(listPath, extraParams = {}, axiosOptions = {}) {
   return all
 }
 
+function productsStatus() {
+  return ['any', 'draft', 'pending', 'private', 'publish'].includes(env.wooProductsStatus)
+    ? env.wooProductsStatus
+    : 'any'
+}
+
 async function fetchProducts() {
-  const status =
-    ['any', 'draft', 'pending', 'private', 'publish'].includes(env.wooProductsStatus)
-      ? env.wooProductsStatus
-      : 'any'
   return fetchAllPages(
     '/products',
     {
-      status,
+      status: productsStatus(),
       orderby: 'id',
       order: 'asc',
     },
     { timeout: LIST_TIMEOUT_MS },
   )
+}
+
+/**
+ * Con el parametro `sku`, Woo fuerza post_type = [product, product_variation] y resuelve
+ * contra wc_product_meta_lookup: una sola peticion encuentra tambien variaciones.
+ * `parent_id` > 0 identifica a la variacion y a su padre.
+ */
+async function fetchProductsBySku(sku) {
+  const { data } = await wooClient.get('/products', {
+    params: {
+      sku: String(sku),
+      status: productsStatus(),
+      per_page: 10,
+      _fields: 'id,type,parent_id,sku',
+    },
+    timeout: LOOKUP_TIMEOUT_MS,
+  })
+  return Array.isArray(data) ? data : []
 }
 
 async function fetchProductById(id) {
@@ -53,6 +82,13 @@ async function fetchProductById(id) {
 
 async function fetchProductVariations(productId) {
   return fetchAllPages(`/products/${productId}/variations`, {}, { timeout: LIST_TIMEOUT_MS })
+}
+
+async function fetchVariationById(productId, variationId) {
+  const { data } = await wooClient.get(`/products/${productId}/variations/${variationId}`, {
+    timeout: LOOKUP_TIMEOUT_MS,
+  })
+  return data
 }
 
 async function fetchCustomers() {
@@ -92,8 +128,10 @@ async function updateProductSku(productId, sku) {
 
 module.exports = {
   fetchProducts,
+  fetchProductsBySku,
   fetchProductById,
   fetchProductVariations,
+  fetchVariationById,
   fetchCustomers,
   createCustomer,
   createOrder,

@@ -5,6 +5,7 @@ const defaultWoo = require('../services/wooClient')
 const createBarcodeRouter = require('./barcode')
 const { createPrintRouter } = require('./print')
 const {
+  createScanMetrics,
   findProductByScanCode,
   getCachedProductList,
   invalidateProductosScanCache,
@@ -375,6 +376,15 @@ function mapOrdenDetalle(o) {
   }
 }
 
+/** Sin esto no se puede comparar el costo real de cada camino del escaneo. */
+function logScan(codigo, resultado, m) {
+  // eslint-disable-next-line no-console
+  console.info(
+    `[scan] codigo=${codigo} resultado=${resultado} origen=${m.origen} peticionesWoo=${m.peticionesWoo} ` +
+      `msTotal=${m.msTotal} msListado=${m.msListado} msLookup=${m.msLookup} msVariaciones=${m.msVariaciones}`,
+  )
+}
+
 function createApiRouter(woo = defaultWoo) {
   const router = express.Router()
 
@@ -398,9 +408,21 @@ function createApiRouter(woo = defaultWoo) {
       if (!q) {
         return res.status(400).json({ error: 'Codigo vacio o invalido' })
       }
+      const metricas = createScanMetrics()
+      const inicio = Date.now()
+      const inicioListado = Date.now()
       const products = await getCachedProductList(woo)
-      const hit = await findProductByScanCode(products, q, (id) => woo.fetchProductVariations(id))
+      metricas.msListado = Date.now() - inicioListado
+      const hit = await findProductByScanCode(products, q, (id) => woo.fetchProductVariations(id), {
+        fetchProductsBySku: woo.fetchProductsBySku,
+        fetchProductById: woo.fetchProductById,
+        fetchVariationById: woo.fetchVariationById,
+        metricas,
+      })
+      metricas.msTotal = Date.now() - inicio
+      res.set('X-Scan-Ms', String(metricas.msTotal))
       if (!hit) {
+        logScan(q, 'no-encontrado', metricas)
         return res.status(404).json({ error: 'Codigo no encontrado' })
       }
       const { tipo, producto: pw, variacion: vw } = hit
@@ -417,6 +439,7 @@ function createApiRouter(woo = defaultWoo) {
             : false
       const resultado =
         tipo === 'simple' ? 'simple' : tipo === 'variacion' ? 'variacion' : 'variable_sin_elegir'
+      logScan(q, resultado, metricas)
       res.json({
         resultado,
         producto: dtoP,
