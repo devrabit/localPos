@@ -65,8 +65,11 @@ condicionadas a lo que muestren las mediciones.
      (`NARIPOS_VARIATIONS_CACHE_MS`, por defecto 120000), reemplazando el `Map` por request.
    - `negativeCache`: `Map<codigo, at>` con TTL `NARIPOS_SCAN_NEGATIVE_MS` (por defecto 15000).
      Consultar al inicio y poblar al devolver `null`.
-   - `invalidateProductosScanCache()` limpia las tres caches.
+   - `invalidateProductosScanCache()` limpia las tres caches y **bumpea un contador de generación**:
+     sin eso, un refresco lanzado antes de invalidar repobla la cache con datos previos a la venta.
    - `warmProductosScanCache(woo)`: precarga el listado; no lanza si falla.
+   - Agente HTTP con `keepAlive` en `wooClient` (Nivel 5 del SPEC): el escaneo encadena varias
+     peticiones al mismo host y no debe rehacer el handshake TLS en cada una.
 
 2. `backend/src/server.js`
    - Llamar a `warmProductosScanCache(woo)` tras el arranque, sin bloquear el `listen`
@@ -82,8 +85,11 @@ condicionadas a lo que muestren las mediciones.
    - `sync-product` invalida la cache.
 
 5. Ajuste de timeouts (solo al final de esta fase, con las métricas ya visibles):
-   - `LIST_TIMEOUT_MS` 120000 → 30000.
-   - `frontend/src/services/api.js` timeout 120000 → 20000.
+   - `LIST_TIMEOUT_MS` 120000 → 30000 (es por página, no por catálogo completo).
+   - `frontend/src/services/api.js`: **no** bajar el timeout global a 20 s, porque la carga inicial
+     de `GET /productos` recorre el catálogo entero y se cortaría. Global 120000 → 60000 y
+     `SCAN_TIMEOUT_MS = 15000` aplicado solo a la petición de escaneo en `PosView.vue`,
+     que es la que debe fallar rápido para avisar al cajero.
 
 ---
 
