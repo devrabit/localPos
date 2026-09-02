@@ -90,6 +90,13 @@ async function updateProductSku(productId, sku) {
   return data
 }
 
+async function updateVariationSku(productId, variationId, sku) {
+  const { data } = await wooClient.put(`/products/${productId}/variations/${variationId}`, {
+    sku: String(sku),
+  })
+  return data
+}
+
 module.exports = {
   fetchProducts,
   fetchProductById,
@@ -100,4 +107,5 @@ module.exports = {
   fetchOrdersPage,
   fetchOrderById,
   updateProductSku,
+  updateVariationSku,
 }

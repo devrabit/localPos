@@ -12,6 +12,7 @@ const {
   skuFromEntity,
 } = require('../utils/productScan')
 const { isVariableProductType } = require('../utils/wooProductType')
+const { findProductsWithoutSku } = require('../utils/productsWithoutSku')
 const { env } = require('../config/env')
 
 const createCustomerSchema = z.object({
@@ -171,6 +172,16 @@ function createApiRouter(woo = defaultWoo) {
     try {
       const products = await woo.fetchProducts()
       res.json(products.map((p) => mapProductDto(p, [])))
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  router.get('/productos/sin-sku', async (_req, res, next) => {
+    try {
+      const products = await woo.fetchProducts()
+      const items = await findProductsWithoutSku(products, (id) => woo.fetchProductVariations(id))
+      res.json({ items, total: items.length })
     } catch (error) {
       next(error)
     }
