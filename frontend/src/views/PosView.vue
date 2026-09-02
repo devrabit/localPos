@@ -10,7 +10,7 @@ import { useClientesStore } from '../stores/clientes'
 import { imprimirFactura } from '../utils/invoicePrint'
 import { useBarcodeScanner, playScanBeep } from '../composables/useBarcodeScanner'
 import { esCodigoEscaneable } from '../utils/scanCode'
-import api from '../services/api'
+import api, { SCAN_TIMEOUT_MS } from '../services/api'
 
 const productosStore = useProductosStore()
 const carritoStore = useCarritoStore()
@@ -173,7 +173,10 @@ async function procesarCodigoEscaneado(code) {
     }
 
     escaneoApiLoading.value = true
-    const { data } = await api.get('/productos/escaneo', { params: { q: raw } })
+    const { data } = await api.get('/productos/escaneo', {
+      params: { q: raw },
+      timeout: SCAN_TIMEOUT_MS,
+    })
     if (data.sinStock) {
       setScanFeedback('error', 'Producto sin stock')
       return

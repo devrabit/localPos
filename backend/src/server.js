@@ -8,6 +8,7 @@ const wooClient = require('./services/wooClient')
 const { formatWooError } = require('./utils/wooErrors')
 const { assertEnv, env } = require('./config/env')
 const { ensureSchema } = require('./db/ensureSchema')
+const { warmProductosScanCache } = require('./utils/productScan')
 
 const app = express()
 
@@ -82,6 +83,7 @@ function start() {
   app.listen(env.port, () => {
     // eslint-disable-next-line no-console
     console.log(`Backend running at http://localhost:${env.port}`)
+    warmProductosScanCache(wooClient)
   })
 }
 
