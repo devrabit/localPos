@@ -4,6 +4,7 @@ const PosView = () => import('../views/PosView.vue')
 const HistorialView = () => import('../modules/historial/views/HistorialView.vue')
 const DetalleVentaView = () => import('../modules/historial/views/DetalleVentaView.vue')
 const BarcodeView = () => import('../views/BarcodeView.vue')
+const ProductosSinSkuView = () => import('../views/ProductosSinSkuView.vue')
 const HistorialSalidasView = () => import('../modules/salidas/views/HistorialSalidasView.vue')
 const SalidasView = () => import('../modules/salidas/views/SalidasView.vue')
 const AgotadosView = () => import('../modules/agotados/views/AgotadosView.vue')
@@ -36,6 +37,11 @@ const router = createRouter({
       path: '/codigos-barras',
       name: 'codigos-barras',
       component: BarcodeView,
+    },
+    {
+      path: '/codigos-barras/sin-sku',
+      name: 'codigos-barras-sin-sku',
+      component: ProductosSinSkuView,
     },
     {
       path: '/salidas',

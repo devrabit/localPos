@@ -69,6 +69,30 @@ test('POST /api/barcode/print con uuid valido', async () => {
   assert.equal(res.body.copies, 2)
 })
 
+test('POST /api/barcode/sync-product variacion con mock woo', async () => {
+  let captured
+  const woo = {
+    updateProductSku: async () => {
+      throw new Error('no debe llamar updateProductSku')
+    },
+    updateVariationSku: async (productId, variationId, sku) => {
+      captured = { productId, variationId, sku }
+      return { id: variationId, sku }
+    },
+  }
+  const app = express()
+  app.use(express.json())
+  app.use('/api/barcode', createBarcodeRouter(woo))
+
+  const res = await request(app)
+    .post('/api/barcode/sync-product')
+    .send({ productId: 10, variationId: 101, barcode: 'VAR-101', type: 'CODE128' })
+    .expect(200)
+
+  assert.equal(res.body.variationId, 101)
+  assert.deepEqual(captured, { productId: 10, variationId: 101, sku: 'VAR-101' })
+})
+
 test('POST /api/barcode/sync-product con mock woo', async () => {
   const woo = {
     updateProductSku: async (id, sku) => {

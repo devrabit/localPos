@@ -35,20 +35,69 @@ app.use('/api', createApiRouter(wooClient))
 
 /**
  * Deploy unico (Hostinger/root bloqueado): servir frontend compilado.
- * Busca dist dentro de backend y tambien en ../dist (build desde root).
+ * Requiere index.html y carpeta assets (Vite); si no, Express serviria HTML
+ * roto y /assets/*.js devolveria 404 o fallback incorrecto (error MIME).
+ * Preferimos ../dist (build desde raiz / server.js) antes que dist junto al backend.
  */
+function dirHasUsableFrontendBuild(dir) {
+  try {
+    const indexPath = path.join(dir, 'index.html')
+    const assetsDir = path.join(dir, 'assets')
+    if (!fs.existsSync(indexPath) || !fs.existsSync(assetsDir) || !fs.statSync(assetsDir).isDirectory()) {
+      return false
+    }
+
+    const html = fs.readFileSync(indexPath, 'utf8')
+    const assetRefs = new Set()
+    const refRegex = /(?:src|href)="\/assets\/([^"]+)"/g
+    let match = refRegex.exec(html)
+    while (match) {
+      assetRefs.add(match[1])
+      match = refRegex.exec(html)
+    }
+
+    if (assetRefs.size === 0) {
+      return fs.readdirSync(assetsDir).length > 0
+    }
+
+    for (const relFile of assetRefs) {
+      if (!fs.existsSync(path.join(assetsDir, relFile))) return false
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
 const distCandidates = [
-  path.resolve(process.cwd(), 'dist'),
   path.resolve(process.cwd(), '../dist'),
+  path.resolve(process.cwd(), 'dist'),
 ]
-const frontendDist = distCandidates.find((p) => fs.existsSync(path.join(p, 'index.html')))
+let frontendDist = distCandidates.find((p) => dirHasUsableFrontendBuild(p))
+
+if (!frontendDist) {
+  for (const p of distCandidates) {
+    if (fs.existsSync(path.join(p, 'index.html')) && !dirHasUsableFrontendBuild(p)) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[naripos] Ignorando dist incompleto en ${p} (falta assets/). Arranca desde la raiz del repo con "npm start" o ejecuta "npm run build" en la raiz.`,
+      )
+    }
+  }
+}
 
 if (frontendDist) {
+  // eslint-disable-next-line no-console
+  console.log(`[naripos] Static frontend: ${frontendDist}`)
   app.use(express.static(frontendDist))
   app.get('/{*path}', (req, res, next) => {
     if (req.path.startsWith('/api') || req.path === '/health' || req.path === '/print') {
       return next()
     }
+    // Solo fallback SPA para navegacion HTML, nunca para assets (/assets/*.js, *.css, etc).
+    const wantsHtml = String(req.headers.accept || '').includes('text/html')
+    const hasExtension = path.extname(req.path) !== ''
+    if (!wantsHtml || hasExtension) return next()
     return res.sendFile(path.join(frontendDist, 'index.html'))
   })
 }
