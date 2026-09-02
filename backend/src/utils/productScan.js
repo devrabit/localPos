@@ -180,17 +180,21 @@ async function lookupBySku(products, qNorm, deps, metricas) {
   }
 }
 
-async function buscarVariacionPorBarrido(variableParents, qNorm, fetchVariationsRaw, metricas) {
-  const inicio = Date.now()
-  const fetchVars = async (parentId) => {
+function createCachedVariationFetcher(fetchVariationsRaw, metricas = null) {
+  return async (parentId) => {
     const entry = variationsCache.get(parentId)
     if (entry && Date.now() - entry.at < VARIATIONS_CACHE_MS) return entry.data
-    metricas.peticionesWoo += 1
+    if (metricas) metricas.peticionesWoo += 1
     const raw = await fetchVariationsRaw(parentId)
     const data = Array.isArray(raw) ? raw : []
     variationsCache.set(parentId, { data, at: Date.now() })
     return data
   }
+}
+
+async function buscarVariacionPorBarrido(variableParents, qNorm, fetchVariationsRaw, metricas) {
+  const inicio = Date.now()
+  const fetchVars = createCachedVariationFetcher(fetchVariationsRaw, metricas)
 
   try {
     for (let i = 0; i < variableParents.length; i += VARIATION_FETCH_CONCURRENCY) {
@@ -275,6 +279,7 @@ module.exports = {
   skuMatchesScan,
   findProductByScanCode,
   createScanMetrics,
+  createCachedVariationFetcher,
   getCachedProductList,
   warmProductosScanCache,
   invalidateProductosScanCache,

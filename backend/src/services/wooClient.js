@@ -81,7 +81,13 @@ async function fetchProductById(id) {
 }
 
 async function fetchProductVariations(productId) {
-  return fetchAllPages(`/products/${productId}/variations`, {}, { timeout: LIST_TIMEOUT_MS })
+  return fetchAllPages(
+    `/products/${productId}/variations`,
+    {
+      _fields: 'id,sku,price,regular_price,stock_quantity,manage_stock,attributes,meta_data',
+    },
+    { timeout: LIST_TIMEOUT_MS },
+  )
 }
 
 async function fetchVariationById(productId, variationId) {

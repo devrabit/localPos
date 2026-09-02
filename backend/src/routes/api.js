@@ -13,7 +13,7 @@ const {
   skuFromEntity,
 } = require('../utils/productScan')
 const { isVariableProductType } = require('../utils/wooProductType')
-const { findProductsWithoutSku } = require('../utils/productsWithoutSku')
+const { getProductsWithoutSkuResponse, invalidateSinSkuCache } = require('../utils/productsWithoutSku')
 const { env } = require('../config/env')
 const { createOutflow, listOutflows } = require('../services/outflowsStorage')
 const annotationsStorage = require('../services/annotationsStorage')
@@ -403,9 +403,8 @@ function createApiRouter(woo = defaultWoo) {
 
   router.get('/productos/sin-sku', async (_req, res, next) => {
     try {
-      const products = await woo.fetchProducts()
-      const items = await findProductsWithoutSku(products, (id) => woo.fetchProductVariations(id))
-      res.json({ items, total: items.length })
+      const data = await getProductsWithoutSkuResponse(woo)
+      res.json(data)
     } catch (error) {
       next(error)
     }
@@ -734,6 +733,7 @@ function createApiRouter(woo = defaultWoo) {
 
       const order = await woo.createOrder(orderBody)
       invalidateProductosScanCache()
+      invalidateSinSkuCache()
 
       res.status(201).json({
         orderId: order.id,

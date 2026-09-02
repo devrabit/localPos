@@ -1,10 +1,15 @@
 const { isVariableProductType } = require('./wooProductType')
-const { skuFromEntity } = require('./productScan')
+const { skuFromEntity, getCachedProductList, createCachedVariationFetcher } = require('./productScan')
 
+const SIN_SKU_CACHE_MS = Number(process.env.NARIPOS_SIN_SKU_CACHE_MS || 120000)
 const VARIATION_FETCH_CONCURRENCY = Math.max(
   1,
   Math.min(24, Number(process.env.NARIPOS_VARIATION_FETCH_CONCURRENCY || 8)),
 )
+
+let cachedResponse = null
+let cachedAt = 0
+let refreshPromise = null
 
 function stockFromWooEntity(entity) {
   if (!entity || typeof entity !== 'object') return 0
@@ -97,9 +102,58 @@ async function findProductsWithoutSku(products, fetchVariationsRaw) {
   return items
 }
 
+async function buildProductsWithoutSkuResponse(woo) {
+  const products = await getCachedProductList(woo)
+  const fetchVars = createCachedVariationFetcher((id) => woo.fetchProductVariations(id))
+  const items = await findProductsWithoutSku(products, fetchVars)
+  return { items, total: items.length }
+}
+
+function invalidateSinSkuCache() {
+  cachedResponse = null
+  cachedAt = 0
+  refreshPromise = null
+}
+
+/**
+ * Stale-while-revalidate: evita 504 en Hostinger al no repetir el barrido completo de Woo.
+ */
+async function getProductsWithoutSkuResponse(woo) {
+  const now = Date.now()
+  if (cachedResponse && now - cachedAt < SIN_SKU_CACHE_MS) {
+    return cachedResponse
+  }
+  if (cachedResponse) {
+    if (!refreshPromise) {
+      refreshPromise = buildProductsWithoutSkuResponse(woo)
+        .then((result) => {
+          cachedResponse = result
+          cachedAt = Date.now()
+          return result
+        })
+        .finally(() => {
+          refreshPromise = null
+        })
+    }
+    refreshPromise.catch(() => {})
+    return cachedResponse
+  }
+  const result = await buildProductsWithoutSkuResponse(woo)
+  cachedResponse = result
+  cachedAt = Date.now()
+  return result
+}
+
+function warmSinSkuCache(woo) {
+  return getProductsWithoutSkuResponse(woo).catch(() => null)
+}
+
 module.exports = {
   findProductsWithoutSku,
   mapSimpleRow,
   mapVariationRow,
   mapVariableParentRow,
+  getProductsWithoutSkuResponse,
+  invalidateSinSkuCache,
+  warmSinSkuCache,
 }

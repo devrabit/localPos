@@ -40,7 +40,13 @@ async function cargar() {
     const { data } = await api.get('/productos/sin-sku')
     items.value = data.items || []
   } catch (err) {
-    error.value = err?.response?.data?.error || err?.message || 'No se pudo cargar el listado'
+    const status = err?.response?.status
+    if (status === 504 || err?.code === 'ECONNABORTED') {
+      error.value =
+        'El catalogo tarda demasiado en responder. Espera unos segundos y pulsa Actualizar (la primera carga puede tardar).'
+    } else {
+      error.value = err?.response?.data?.error || err?.message || 'No se pudo cargar el listado'
+    }
     items.value = []
   } finally {
     loading.value = false
