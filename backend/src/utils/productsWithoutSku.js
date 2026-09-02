@@ -7,9 +7,9 @@ const VARIATION_FETCH_CONCURRENCY = Math.max(
   Math.min(24, Number(process.env.NARIPOS_VARIATION_FETCH_CONCURRENCY || 8)),
 )
 
-let cachedResponse = null
-let cachedAt = 0
-let refreshPromise = null
+const PAGE_CACHE_MAX = 60
+/** Respuestas por pagina: clave `page|limit|q`. */
+const pageCache = new Map()
 
 function stockFromWooEntity(entity) {
   if (!entity || typeof entity !== 'object') return 0
@@ -102,50 +102,67 @@ async function findProductsWithoutSku(products, fetchVariationsRaw) {
   return items
 }
 
-async function buildProductsWithoutSkuResponse(woo) {
+function matchesQuery(product, qLower) {
+  if (!qLower) return true
+  const nombre = String(product?.name || '').toLowerCase()
+  if (nombre.includes(qLower)) return true
+  const sku = skuFromEntity(product).toLowerCase()
+  if (sku && sku.includes(qLower)) return true
+  return String(product?.id ?? '').includes(qLower)
+}
+
+async function buildPage(woo, page, limit, q) {
   const products = await getCachedProductList(woo)
+  const qLower = q.trim().toLowerCase()
+  const candidatos = qLower ? products.filter((p) => matchesQuery(p, qLower)) : products.slice()
+
+  /** Orden estable: sin esto la paginacion baila entre peticiones. */
+  candidatos.sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'es'))
+
+  const totalProductos = candidatos.length
+  const totalPages = Math.max(1, Math.ceil(totalProductos / limit))
+  const paginaSegura = Math.min(page, totalPages)
+  const inicio = (paginaSegura - 1) * limit
+  const slice = candidatos.slice(inicio, inicio + limit)
+
   const fetchVars = createCachedVariationFetcher((id) => woo.fetchProductVariations(id))
-  const items = await findProductsWithoutSku(products, fetchVars)
-  return { items, total: items.length }
+  const items = await findProductsWithoutSku(slice, fetchVars)
+
+  return {
+    items,
+    total: items.length,
+    page: paginaSegura,
+    limit,
+    totalProductos,
+    totalPages,
+    hasMore: paginaSegura < totalPages,
+  }
 }
 
 function invalidateSinSkuCache() {
-  cachedResponse = null
-  cachedAt = 0
-  refreshPromise = null
+  pageCache.clear()
 }
 
 /**
- * Stale-while-revalidate: evita 504 en Hostinger al no repetir el barrido completo de Woo.
+ * Solo pide variaciones de los productos de la pagina pedida: sin esto el barrido
+ * completo del catalogo agota el timeout del hosting (504).
  */
-async function getProductsWithoutSkuResponse(woo) {
-  const now = Date.now()
-  if (cachedResponse && now - cachedAt < SIN_SKU_CACHE_MS) {
-    return cachedResponse
+async function getProductsWithoutSkuPage(woo, { page = 1, limit = 20, q = '' } = {}) {
+  const key = `${page}|${limit}|${q.trim().toLowerCase()}`
+  const cached = pageCache.get(key)
+  if (cached && Date.now() - cached.at < SIN_SKU_CACHE_MS) {
+    return cached.data
   }
-  if (cachedResponse) {
-    if (!refreshPromise) {
-      refreshPromise = buildProductsWithoutSkuResponse(woo)
-        .then((result) => {
-          cachedResponse = result
-          cachedAt = Date.now()
-          return result
-        })
-        .finally(() => {
-          refreshPromise = null
-        })
-    }
-    refreshPromise.catch(() => {})
-    return cachedResponse
-  }
-  const result = await buildProductsWithoutSkuResponse(woo)
-  cachedResponse = result
-  cachedAt = Date.now()
-  return result
+
+  const data = await buildPage(woo, page, limit, q)
+  if (pageCache.size >= PAGE_CACHE_MAX) pageCache.clear()
+  pageCache.set(key, { data, at: Date.now() })
+  return data
 }
 
+/** Precarga solo la primera pagina: el resto se resuelve al navegar. */
 function warmSinSkuCache(woo) {
-  return getProductsWithoutSkuResponse(woo).catch(() => null)
+  return getProductsWithoutSkuPage(woo).catch(() => null)
 }
 
 module.exports = {
@@ -153,7 +170,7 @@ module.exports = {
   mapSimpleRow,
   mapVariationRow,
   mapVariableParentRow,
-  getProductsWithoutSkuResponse,
+  getProductsWithoutSkuPage,
   invalidateSinSkuCache,
   warmSinSkuCache,
 }

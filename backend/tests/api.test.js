@@ -6,6 +6,8 @@ const assert = require('node:assert')
 const express = require('express')
 const request = require('supertest')
 const createApiRouter = require('../src/routes/api')
+const { invalidateProductosScanCache } = require('../src/utils/productScan')
+const { invalidateSinSkuCache } = require('../src/utils/productsWithoutSku')
 
 function buildApp(mockWoo) {
   const app = express()
@@ -166,14 +168,82 @@ test('GET /api/productos/sin-sku lista simples y variaciones sin SKU', async () 
     createCustomer: async () => ({}),
     createOrder: async () => ({}),
   }
+  invalidateProductosScanCache()
+  invalidateSinSkuCache()
   const res = await request(buildApp(mockWoo)).get('/api/productos/sin-sku').expect(200)
   assert.equal(res.body.total, 3)
   assert.equal(res.body.items.length, 3)
+  assert.equal(res.body.page, 1)
+  assert.equal(res.body.totalProductos, 3)
+  assert.equal(res.body.totalPages, 1)
+  assert.equal(res.body.hasMore, false)
   const nombres = res.body.items.map((i) => i.nombre)
   assert.ok(nombres.includes('Sin codigo'))
   assert.ok(nombres.includes('Camiseta — M'))
   assert.ok(nombres.includes('Camiseta'))
   assert.ok(!nombres.some((n) => n.includes('Con SKU')))
+})
+
+test('GET /api/productos/sin-sku solo pide variaciones de la pagina pedida', async () => {
+  const variacionesPedidas = []
+  const mockWoo = {
+    fetchProducts: async () =>
+      Array.from({ length: 5 }, (_, i) => ({
+        id: i + 1,
+        type: 'variable',
+        name: `P${i + 1}`,
+        price: '0',
+        sku: '',
+        manage_stock: false,
+        stock_quantity: null,
+      })),
+    fetchProductVariations: async (pid) => {
+      variacionesPedidas.push(pid)
+      return [{ id: pid * 100, price: '1', sku: '', manage_stock: true, stock_quantity: 1, attributes: [] }]
+    },
+    fetchCustomers: async () => [],
+    createCustomer: async () => ({}),
+    createOrder: async () => ({}),
+  }
+  invalidateProductosScanCache()
+  invalidateSinSkuCache()
+
+  const res = await request(buildApp(mockWoo))
+    .get('/api/productos/sin-sku')
+    .query({ page: 1, limit: 2 })
+    .expect(200)
+
+  assert.equal(res.body.page, 1)
+  assert.equal(res.body.limit, 2)
+  assert.equal(res.body.totalProductos, 5)
+  assert.equal(res.body.totalPages, 3)
+  assert.equal(res.body.hasMore, true)
+  assert.deepEqual(variacionesPedidas, [1, 2])
+})
+
+test('GET /api/productos/sin-sku filtra por q y rechaza params invalidos', async () => {
+  const mockWoo = {
+    fetchProducts: async () => [
+      { id: 1, type: 'simple', name: 'Camiseta azul', price: '1', sku: '', manage_stock: false },
+      { id: 2, type: 'simple', name: 'Pantalon', price: '2', sku: '', manage_stock: false },
+    ],
+    fetchProductVariations: async () => [],
+    fetchCustomers: async () => [],
+    createCustomer: async () => ({}),
+    createOrder: async () => ({}),
+  }
+  invalidateProductosScanCache()
+  invalidateSinSkuCache()
+
+  const res = await request(buildApp(mockWoo))
+    .get('/api/productos/sin-sku')
+    .query({ q: 'camiseta' })
+    .expect(200)
+  assert.equal(res.body.totalProductos, 1)
+  assert.equal(res.body.items[0].nombre, 'Camiseta azul')
+
+  await request(buildApp(mockWoo)).get('/api/productos/sin-sku').query({ page: 0 }).expect(400)
+  await request(buildApp(mockWoo)).get('/api/productos/sin-sku').query({ limit: 500 }).expect(400)
 })
 
 test('GET /api/productos/:id/variaciones carga variaciones bajo demanda', async () => {

@@ -13,7 +13,7 @@ const {
   skuFromEntity,
 } = require('../utils/productScan')
 const { isVariableProductType } = require('../utils/wooProductType')
-const { getProductsWithoutSkuResponse, invalidateSinSkuCache } = require('../utils/productsWithoutSku')
+const { getProductsWithoutSkuPage, invalidateSinSkuCache } = require('../utils/productsWithoutSku')
 const { env } = require('../config/env')
 const { createOutflow, listOutflows } = require('../services/outflowsStorage')
 const annotationsStorage = require('../services/annotationsStorage')
@@ -274,6 +274,12 @@ function mapCustomer(c) {
   }
 }
 
+const sinSkuQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  q: z.string().max(200).optional().default(''),
+})
+
 const ordenesQuerySchema = z.object({
   fechaInicio: z.string().max(32).optional(),
   fechaFin: z.string().max(32).optional(),
@@ -401,11 +407,15 @@ function createApiRouter(woo = defaultWoo) {
     }
   })
 
-  router.get('/productos/sin-sku', async (_req, res, next) => {
+  router.get('/productos/sin-sku', async (req, res, next) => {
     try {
-      const data = await getProductsWithoutSkuResponse(woo)
+      const parsed = sinSkuQuerySchema.parse(req.query)
+      const data = await getProductsWithoutSkuPage(woo, parsed)
       res.json(data)
     } catch (error) {
+      if (error?.name === 'ZodError') {
+        return res.status(400).json({ error: 'Parametros de paginacion invalidos' })
+      }
       next(error)
     }
   })

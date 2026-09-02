@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../services/api'
 
@@ -10,16 +10,15 @@ const loading = ref(false)
 const error = ref('')
 const search = ref('')
 
-const itemsFiltrados = computed(() => {
-  const q = search.value.trim().toLowerCase()
-  if (!q) return items.value
-  return items.value.filter((item) => {
-    const nombre = item.nombre?.toLowerCase() || ''
-    const id = String(item.productId)
-    const vid = item.variationId != null ? String(item.variationId) : ''
-    return nombre.includes(q) || id.includes(q) || vid.includes(q)
-  })
-})
+const page = ref(1)
+const limit = ref(20)
+const totalPages = ref(1)
+const totalProductos = ref(0)
+const hasMore = ref(false)
+
+const LIMIT_OPTIONS = [20, 50, 100]
+
+let searchTimer = null
 
 function tipoLabel(tipo) {
   if (tipo === 'variacion') return 'Variacion'
@@ -37,13 +36,19 @@ async function cargar() {
   loading.value = true
   error.value = ''
   try {
-    const { data } = await api.get('/productos/sin-sku')
+    const { data } = await api.get('/productos/sin-sku', {
+      params: { page: page.value, limit: limit.value, q: search.value.trim() },
+    })
     items.value = data.items || []
+    page.value = data.page || 1
+    totalPages.value = data.totalPages || 1
+    totalProductos.value = data.totalProductos || 0
+    hasMore.value = Boolean(data.hasMore)
   } catch (err) {
     const status = err?.response?.status
     if (status === 504 || err?.code === 'ECONNABORTED') {
       error.value =
-        'El catalogo tarda demasiado en responder. Espera unos segundos y pulsa Actualizar (la primera carga puede tardar).'
+        'El catalogo tarda demasiado en responder. Reintenta o reduce los productos por pagina.'
     } else {
       error.value = err?.response?.data?.error || err?.message || 'No se pudo cargar el listado'
     }
@@ -53,6 +58,27 @@ async function cargar() {
   }
 }
 
+function irAPagina(destino) {
+  const siguiente = Math.min(Math.max(1, destino), totalPages.value)
+  if (siguiente === page.value) return
+  page.value = siguiente
+  cargar()
+}
+
+function cambiarLimite(valor) {
+  limit.value = Number(valor)
+  page.value = 1
+  cargar()
+}
+
+watch(search, () => {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    page.value = 1
+    cargar()
+  }, 350)
+})
+
 function irAGenerar(item) {
   const query = { productId: String(item.productId) }
   if (item.variationId != null) query.variationId = String(item.variationId)
@@ -60,6 +86,10 @@ function irAGenerar(item) {
 }
 
 onMounted(cargar)
+
+onUnmounted(() => {
+  if (searchTimer) clearTimeout(searchTimer)
+})
 </script>
 
 <template>
@@ -90,39 +120,56 @@ onMounted(cargar)
     <section class="rounded-xl bg-white p-4 shadow-sm">
       <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
         <p class="text-sm text-slate-600">
-          <span v-if="!loading">{{ itemsFiltrados.length }}</span>
-          <span v-else>…</span>
-          de {{ items.length }} sin SKU
+          <span v-if="loading">Cargando…</span>
+          <span v-else>
+            {{ items.length }} sin SKU en esta pagina · Pagina {{ page }} de {{ totalPages }} ({{
+              totalProductos
+            }}
+            productos)
+          </span>
         </p>
-        <button
-          type="button"
-          class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700"
-          :disabled="loading"
-          @click="cargar"
-        >
-          Actualizar
-        </button>
+        <div class="flex flex-wrap items-center gap-2">
+          <label class="text-sm text-slate-600">
+            Por pagina
+            <select
+              :value="limit"
+              class="ml-1 rounded-lg border border-slate-300 px-2 py-1 text-sm"
+              :disabled="loading"
+              @change="cambiarLimite($event.target.value)"
+            >
+              <option v-for="opt in LIMIT_OPTIONS" :key="opt" :value="opt">{{ opt }}</option>
+            </select>
+          </label>
+          <button
+            type="button"
+            class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700"
+            :disabled="loading"
+            @click="cargar"
+          >
+            Actualizar
+          </button>
+        </div>
       </div>
 
       <input
         v-model="search"
         type="search"
-        placeholder="Buscar por nombre o ID"
+        placeholder="Buscar por nombre, SKU o ID de producto"
         class="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-base"
       />
 
       <p v-if="error" class="mb-3 rounded-lg bg-rose-100 px-3 py-2 text-rose-800">{{ error }}</p>
       <p v-else-if="loading" class="py-8 text-center text-slate-500">Cargando productos…</p>
-      <p v-else-if="items.length === 0" class="py-8 text-center text-emerald-700">
-        Todos los productos y variaciones tienen SKU asignado.
+      <p v-else-if="totalProductos === 0" class="py-8 text-center text-slate-500">
+        Ningun producto coincide con la busqueda.
       </p>
-      <p v-else-if="itemsFiltrados.length === 0" class="py-8 text-center text-slate-500">
-        Ningun resultado para esta busqueda.
+      <p v-else-if="items.length === 0" class="py-8 text-center text-emerald-700">
+        Todos los productos de esta pagina tienen SKU. Avanza a la siguiente pagina para seguir revisando.
       </p>
 
       <ul v-else class="divide-y divide-slate-100 rounded-lg border border-slate-200">
         <li
-          v-for="item in itemsFiltrados"
+          v-for="item in items"
           :key="`${item.productId}-${item.variationId ?? 'p'}`"
           class="flex flex-wrap items-center justify-between gap-3 px-3 py-3 hover:bg-slate-50"
         >
@@ -149,6 +196,26 @@ onMounted(cargar)
           </button>
         </li>
       </ul>
+
+      <nav v-if="!error && totalProductos > 0" class="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <button
+          type="button"
+          class="inline-flex min-h-10 items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+          :disabled="loading || page <= 1"
+          @click="irAPagina(page - 1)"
+        >
+          Anterior
+        </button>
+        <span class="text-sm text-slate-600">Pagina {{ page }} de {{ totalPages }}</span>
+        <button
+          type="button"
+          class="inline-flex min-h-10 items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+          :disabled="loading || !hasMore"
+          @click="irAPagina(page + 1)"
+        >
+          Siguiente
+        </button>
+      </nav>
     </section>
   </main>
 </template>
