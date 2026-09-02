@@ -70,6 +70,72 @@ test('GET /api/productos variable deja variaciones vacias (lazy, resuelve escane
   assert.deepEqual(res.body[0].variaciones, [])
 })
 
+test('GET /api/productos/sin-sku lista simples y variaciones sin SKU', async () => {
+  const mockWoo = {
+    fetchProducts: async () => [
+      {
+        id: 1,
+        type: 'simple',
+        name: 'Sin codigo',
+        price: '5',
+        sku: '',
+        manage_stock: true,
+        stock_quantity: 2,
+      },
+      {
+        id: 2,
+        type: 'simple',
+        name: 'Con SKU',
+        price: '8',
+        sku: 'OK-1',
+        manage_stock: true,
+        stock_quantity: 1,
+      },
+      {
+        id: 10,
+        type: 'variable',
+        name: 'Camiseta',
+        price: '0',
+        sku: '',
+        manage_stock: false,
+        stock_quantity: null,
+      },
+    ],
+    fetchProductVariations: async (pid) => {
+      assert.equal(pid, 10)
+      return [
+        {
+          id: 101,
+          price: '20',
+          sku: '',
+          manage_stock: true,
+          stock_quantity: 1,
+          attributes: [{ name: 'Talla', option: 'M' }],
+        },
+        {
+          id: 102,
+          price: '22',
+          sku: 'C-L',
+          manage_stock: true,
+          stock_quantity: 2,
+          attributes: [{ name: 'Talla', option: 'L' }],
+        },
+      ]
+    },
+    fetchCustomers: async () => [],
+    createCustomer: async () => ({}),
+    createOrder: async () => ({}),
+  }
+  const res = await request(buildApp(mockWoo)).get('/api/productos/sin-sku').expect(200)
+  assert.equal(res.body.total, 3)
+  assert.equal(res.body.items.length, 3)
+  const nombres = res.body.items.map((i) => i.nombre)
+  assert.ok(nombres.includes('Sin codigo'))
+  assert.ok(nombres.includes('Camiseta — M'))
+  assert.ok(nombres.includes('Camiseta'))
+  assert.ok(!nombres.some((n) => n.includes('Con SKU')))
+})
+
 test('GET /api/productos/:id/variaciones carga variaciones bajo demanda', async () => {
   const mockWoo = {
     fetchProducts: async () => [],

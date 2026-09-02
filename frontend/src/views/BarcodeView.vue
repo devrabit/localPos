@@ -1,9 +1,11 @@
 <script setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import JsBarcode from 'jsbarcode'
 import api from '../services/api'
 import { useProductosStore } from '../stores/productos'
 
+const route = useRoute()
 const productosStore = useProductosStore()
 
 const searchProduct = ref('')
@@ -27,6 +29,7 @@ const etiqueta = ref('50x30')
 const gridLayout = ref('1x1')
 
 const productoSeleccionado = ref(null)
+const variacionSeleccionada = ref(null)
 
 const etiquetasPresets = {
   '50x30': { w: '50mm', h: '30mm' },
@@ -94,13 +97,52 @@ watch(previewSvg, () => nextTick(dibujarVistaPrevia))
 onMounted(async () => {
   productosStore.hydrateCache()
   await productosStore.cargarProductos()
+  await aplicarSeleccionDesdeQuery()
 })
 
-function elegirProducto(p) {
+function elegirProducto(p, variacion = null) {
   productoSeleccionado.value = p
-  const base = (p.sku && String(p.sku).trim()) || String(p.id)
-  texto.value = base
+  variacionSeleccionada.value = variacion
+  if (variacion) {
+    const base = (variacion.sku && String(variacion.sku).trim()) || String(variacion.variationId)
+    texto.value = base
+  } else {
+    const base = (p.sku && String(p.sku).trim()) || String(p.id)
+    texto.value = base
+  }
   searchProduct.value = ''
+}
+
+async function aplicarSeleccionDesdeQuery() {
+  const productId = Number(route.query.productId)
+  if (!Number.isInteger(productId) || productId < 1) return
+
+  let p = productosStore.productos.find((x) => x.id === productId)
+  if (!p) {
+    try {
+      const { data } = await api.get(`/productos/${productId}/variaciones`)
+      const nombre = `Producto #${productId}`
+      p = { id: productId, nombre, sku: '', tipo: data.variaciones?.length ? 'variable' : 'simple' }
+    } catch {
+      p = { id: productId, nombre: `Producto #${productId}`, sku: '', tipo: 'simple' }
+    }
+  }
+
+  const variationId = Number(route.query.variationId)
+  if (Number.isInteger(variationId) && variationId > 0) {
+    try {
+      const { data } = await api.get(`/productos/${productId}/variaciones`)
+      const variacion = (data.variaciones || []).find((v) => v.variationId === variationId)
+      if (variacion) {
+        elegirProducto(p, variacion)
+        return
+      }
+    } catch {
+      /* fallback al padre */
+    }
+  }
+
+  elegirProducto(p, null)
 }
 
 async function generarEnServidor() {
@@ -152,16 +194,29 @@ async function guardarEnWoo() {
   syncMsg.value = ''
   loading.value = true
   try {
-    await api.post('/barcode/sync-product', {
+    const body = {
       productId: productoSeleccionado.value.id,
       barcode: texto.value,
       type: tipo.value,
-    })
-    syncMsg.value = 'SKU actualizado en WooCommerce con el numero del codigo.'
+    }
+    if (variacionSeleccionada.value?.variationId) {
+      body.variationId = variacionSeleccionada.value.variationId
+    }
+    await api.post('/barcode/sync-product', body)
+    syncMsg.value = variacionSeleccionada.value
+      ? 'SKU de variacion actualizado en WooCommerce.'
+      : 'SKU actualizado en WooCommerce con el numero del codigo.'
     await productosStore.cargarProductos()
     const actualizado = productosStore.productos.find((p) => p.id === productoSeleccionado.value.id)
     if (actualizado) {
       productoSeleccionado.value = actualizado
+    }
+    if (variacionSeleccionada.value?.variationId) {
+      const { data } = await api.get(`/productos/${productoSeleccionado.value.id}/variaciones`)
+      const v = (data.variaciones || []).find(
+        (x) => x.variationId === variacionSeleccionada.value.variationId,
+      )
+      if (v) variacionSeleccionada.value = v
     }
   } catch (err) {
     syncMsg.value = err?.response?.data?.error || err?.message || 'No se pudo guardar en Woo.'
@@ -217,6 +272,12 @@ const productosFiltradosBusqueda = computed(() => {
           Volver al POS
         </router-link>
         <router-link
+          to="/codigos-barras/sin-sku"
+          class="inline-flex min-h-12 items-center rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-base font-semibold text-amber-950 shadow-sm"
+        >
+          Sin SKU
+        </router-link>
+        <router-link
           to="/historial"
           class="inline-flex min-h-12 items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-base font-semibold text-slate-800 shadow-sm"
         >
@@ -246,7 +307,15 @@ const productosFiltradosBusqueda = computed(() => {
           </li>
         </ul>
         <p v-if="productoSeleccionado" class="mt-2 text-sm text-indigo-700">
-          Seleccionado: {{ productoSeleccionado.nombre }} ({{ productoSeleccionado.sku || 'sin SKU' }})
+          Seleccionado:
+          {{
+            variacionSeleccionada
+              ? variacionSeleccionada.nombre
+              : productoSeleccionado.nombre
+          }}
+          ({{
+            variacionSeleccionada?.sku || productoSeleccionado.sku || 'sin SKU'
+          }})
         </p>
       </section>
 

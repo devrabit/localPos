@@ -22,6 +22,7 @@ const printSchema = z.object({
 
 const syncProductSchema = z.object({
   productId: z.number().int().positive(),
+  variationId: z.number().int().positive().optional(),
   barcode: z.string().min(1).max(200),
   type: z.enum(['CODE128', 'EAN13']),
 })
@@ -130,6 +131,19 @@ function createBarcodeRouter(woo) {
       const validated = validateBarcodeText(payload.type, payload.barcode)
       if (!validated.ok) {
         return res.status(400).json({ error: validated.error })
+      }
+      if (payload.variationId) {
+        if (!woo.updateVariationSku) {
+          return res.status(501).json({ error: 'Sincronizacion de variaciones no disponible' })
+        }
+        await woo.updateVariationSku(payload.productId, payload.variationId, validated.text)
+        return res.json({
+          ok: true,
+          productId: payload.productId,
+          variationId: payload.variationId,
+          sku: validated.text,
+          barcode: validated.text,
+        })
       }
       await woo.updateProductSku(payload.productId, validated.text)
       res.json({ ok: true, productId: payload.productId, sku: validated.text, barcode: validated.text })
