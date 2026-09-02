@@ -4,7 +4,7 @@ node_modules/
 # Builds
 frontend/dist/
 backend/dist/
-dist/
+# dist/ en la raiz se versiona para deploy Hostinger (rama deployWithBD)
 
 # Secrets (usar .env.example como plantilla)
 backend/.env
