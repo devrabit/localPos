@@ -1,9 +1,7 @@
 <script setup>
 import { onMounted, onUnmounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import AsignarSkuModal from '../components/AsignarSkuModal.vue'
 import api from '../services/api'
-
-const router = useRouter()
 
 const items = ref([])
 const loading = ref(false)
@@ -16,9 +14,13 @@ const totalPages = ref(1)
 const totalProductos = ref(0)
 const hasMore = ref(false)
 
+const itemSeleccionado = ref(null)
+const aviso = ref('')
+
 const LIMIT_OPTIONS = [20, 50, 100]
 
 let searchTimer = null
+let avisoTimer = null
 
 function tipoLabel(tipo) {
   if (tipo === 'variacion') return 'Variacion'
@@ -79,16 +81,42 @@ watch(search, () => {
   }, 350)
 })
 
-function irAGenerar(item) {
-  const query = { productId: String(item.productId) }
-  if (item.variationId != null) query.variationId = String(item.variationId)
-  router.push({ path: '/codigos-barras', query })
+function abrirModal(item) {
+  itemSeleccionado.value = item
+}
+
+function cerrarModal() {
+  itemSeleccionado.value = null
+}
+
+function mostrarAviso(texto) {
+  aviso.value = texto
+  if (avisoTimer) clearTimeout(avisoTimer)
+  avisoTimer = setTimeout(() => {
+    aviso.value = ''
+  }, 4000)
+}
+
+function onSkuGuardado(payload) {
+  items.value = items.value.filter(
+    (row) =>
+      !(
+        row.productId === payload.productId &&
+        (row.variationId ?? null) === (payload.variationId ?? null)
+      ),
+  )
+  mostrarAviso(`SKU asignado a ${payload.nombre}`)
+  cerrarModal()
+  if (items.value.length === 0 && totalPages.value > 1) {
+    cargar()
+  }
 }
 
 onMounted(cargar)
 
 onUnmounted(() => {
   if (searchTimer) clearTimeout(searchTimer)
+  if (avisoTimer) clearTimeout(avisoTimer)
 })
 </script>
 
@@ -116,6 +144,14 @@ onUnmounted(() => {
         </router-link>
       </div>
     </header>
+
+    <p
+      v-if="aviso"
+      class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-900"
+      role="status"
+    >
+      {{ aviso }}
+    </p>
 
     <section class="rounded-xl bg-white p-4 shadow-sm">
       <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -190,7 +226,7 @@ onUnmounted(() => {
           <button
             type="button"
             class="inline-flex min-h-10 shrink-0 items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white"
-            @click="irAGenerar(item)"
+            @click="abrirModal(item)"
           >
             Generar codigo
           </button>
@@ -217,5 +253,12 @@ onUnmounted(() => {
         </button>
       </nav>
     </section>
+
+    <AsignarSkuModal
+      v-if="itemSeleccionado"
+      :item="itemSeleccionado"
+      @close="cerrarModal"
+      @saved="onSkuGuardado"
+    />
   </main>
 </template>
