@@ -15,10 +15,10 @@ test('findProductsWithoutSku incluye simple sin sku y variacion sin sku', async 
       { id: 31, price: '4', sku: 'VS', manage_stock: true, stock_quantity: 1, attributes: [{ option: 'M' }] },
     ]
   })
-  assert.equal(items.length, 3)
+  assert.equal(items.length, 2)
   assert.ok(items.some((i) => i.tipo === 'simple' && i.productId === 1))
   assert.ok(items.some((i) => i.tipo === 'variacion' && i.variationId === 30))
-  assert.ok(items.some((i) => i.tipo === 'variable' && i.productId === 3))
+  assert.ok(!items.some((i) => i.tipo === 'variable'))
 })
 
 test('findProductsWithoutSku respeta meta _sku en variacion', async () => {
@@ -34,6 +34,5 @@ test('findProductsWithoutSku respeta meta _sku en variacion', async () => {
       attributes: [],
     },
   ])
-  assert.equal(items.length, 1)
-  assert.equal(items[0].tipo, 'variable')
+  assert.equal(items.length, 0)
 })

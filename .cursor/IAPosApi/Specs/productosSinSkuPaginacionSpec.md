@@ -42,7 +42,7 @@ El cuello de botella son las **N peticiones de variaciones**. Con 200 productos 
       "productId": 10,
       "variationId": 101,
       "nombre": "Camiseta — M",
-      "tipo": "simple | variacion | variable",
+      "tipo": "simple | variacion",
       "precio": 20.0,
       "stock": 5
     }

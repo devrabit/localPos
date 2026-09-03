@@ -24,13 +24,11 @@ let avisoTimer = null
 
 function tipoLabel(tipo) {
   if (tipo === 'variacion') return 'Variacion'
-  if (tipo === 'variable') return 'Variable (padre)'
   return 'Simple'
 }
 
 function tipoBadgeClass(tipo) {
   if (tipo === 'variacion') return 'bg-violet-100 text-violet-800'
-  if (tipo === 'variable') return 'bg-amber-100 text-amber-900'
   return 'bg-sky-100 text-sky-800'
 }
 
@@ -126,7 +124,7 @@ onUnmounted(() => {
       <div>
         <h1 class="text-2xl font-bold text-slate-900 md:text-3xl">Productos sin SKU</h1>
         <p class="text-sm text-slate-500">
-          Productos simples, variables y variaciones que aun no tienen codigo asignado
+          Productos simples y variaciones que aun no tienen codigo asignado
         </p>
       </div>
       <div class="flex flex-wrap gap-2">

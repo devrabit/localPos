@@ -36,13 +36,11 @@ const codigosBarrasLink = computed(() => {
 
 function tipoLabel(tipoItem) {
   if (tipoItem === 'variacion') return 'Variacion'
-  if (tipoItem === 'variable') return 'Variable (padre)'
   return 'Simple'
 }
 
 function tipoBadgeClass(tipoItem) {
   if (tipoItem === 'variacion') return 'bg-violet-100 text-violet-800'
-  if (tipoItem === 'variable') return 'bg-amber-100 text-amber-900'
   return 'bg-sky-100 text-sky-800'
 }
 

@@ -19,7 +19,6 @@ El escaneo en POS resuelve productos por **SKU** (campo `sku` o `meta_data._sku`
 * API backend que consulta WooCommerce y devuelve ítems sin SKU
 * Productos **simples** sin SKU
 * **Variaciones** sin SKU (productos variables)
-* Producto **variable (padre)** sin SKU, cuando aplica
 * Navegación al generador con producto/variación preseleccionado
 * Guardar SKU en variación vía `POST /api/barcode/sync-product` con `variationId`
 
@@ -40,7 +39,7 @@ El escaneo en POS resuelve productos por **SKU** (campo `sku` o `meta_data._sku`
   "productId": 10,
   "variationId": 101,
   "nombre": "Camiseta — M",
-  "tipo": "simple | variacion | variable",
+  "tipo": "simple | variacion",
   "precio": 20.0,
   "stock": 5
 }
@@ -49,9 +48,9 @@ El escaneo en POS resuelve productos por **SKU** (campo `sku` o `meta_data._sku`
 | Campo         | Descripción                                              |
 | ------------- | -------------------------------------------------------- |
 | `productId`   | ID del producto padre en WooCommerce                     |
-| `variationId` | `null` para simple/padre; ID de variación si aplica  |
+| `variationId` | `null` para simple; ID de variación si aplica              |
 | `nombre`      | Nombre legible (variación incluye atributos)             |
-| `tipo`        | `simple`, `variacion` o `variable` (padre)               |
+| `tipo`        | `simple` o `variacion`                                     |
 | `precio`      | Precio numérico                                          |
 | `stock`       | Cantidad; `-1` = stock ilimitado                         |
 
@@ -78,8 +77,7 @@ El escaneo en POS resuelve productos por **SKU** (campo `sku` o `meta_data._sku`
 2. Para cada producto **simple**: incluir si `sku` y `meta_data._sku` están vacíos
 3. Para cada producto **variable** (`variable`, `variable-subscription`, etc.):
    * Cargar variaciones (`fetchProductVariations`)
-   * Incluir cada variación sin SKU
-   * Si el padre tampoco tiene SKU, incluir fila `tipo: variable`
+   * Incluir cada variación sin SKU (no incluir el padre variable)
 4. Ordenar por `nombre` (locale `es`)
 
 **Concurrencia:** reutilizar `NARIPOS_VARIATION_FETCH_CONCURRENCY` (default 8) para no saturar Woo.
@@ -135,7 +133,7 @@ Body existente + campo opcional:
 | Contador              | "N de total sin SKU"                                |
 | Búsqueda              | Filtra por nombre, `productId` o `variationId`      |
 | Lista                 | Una fila por ítem pendiente                         |
-| Badge tipo            | Simple / Variación / Variable (padre)               |
+| Badge tipo            | Simple / Variación                                  |
 | Botón Generar código  | Navega a `/codigos-barras?productId=X&variationId=Y` |
 | Actualizar            | Recarga el listado desde la API                     |
 | Volver a códigos      | Link a `/codigos-barras`                            |
@@ -175,7 +173,7 @@ Al llegar con query params:
 
 * Un ítem **no** aparece en el listado si tiene SKU en campo `sku` **o** en `meta_data._sku`
 * Productos con SKU no se mezclan en el listado aunque tengan variaciones sin SKU (cada variación se evalúa por separado)
-* El padre variable sin SKU aparece como fila adicional (útil para escaneo por SKU de padre)
+* Los productos **variable (padre)** no aparecen en el listado; solo sus variaciones sin SKU
 
 ---
 

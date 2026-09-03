@@ -49,19 +49,8 @@ function mapVariationRow(p, v) {
   }
 }
 
-function mapVariableParentRow(p) {
-  return {
-    productId: p.id,
-    variationId: null,
-    nombre: p.name,
-    tipo: 'variable',
-    precio: Number(p.price || 0),
-    stock: stockFromWooEntity(p),
-  }
-}
-
 /**
- * Productos y variaciones sin SKU (campo sku o meta _sku vacios).
+ * Productos simples y variaciones sin SKU (no incluye padres variables).
  */
 async function findProductsWithoutSku(products, fetchVariationsRaw) {
   const variableParents = products.filter((p) => isVariableProductType(p.type))
@@ -87,14 +76,10 @@ async function findProductsWithoutSku(products, fetchVariationsRaw) {
     )
 
     for (const { p, vars } of batchResults) {
-      if (vars.length === 0) {
-        if (!skuFromEntity(p)) items.push(mapVariableParentRow(p))
-        continue
-      }
+      if (vars.length === 0) continue
       for (const v of vars) {
         if (!skuFromEntity(v)) items.push(mapVariationRow(p, v))
       }
-      if (!skuFromEntity(p)) items.push(mapVariableParentRow(p))
     }
   }
 
@@ -169,7 +154,6 @@ module.exports = {
   findProductsWithoutSku,
   mapSimpleRow,
   mapVariationRow,
-  mapVariableParentRow,
   getProductsWithoutSkuPage,
   invalidateSinSkuCache,
   warmSinSkuCache,
