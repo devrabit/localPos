@@ -1,4 +1,4 @@
-# PLAN: Módulo Pedidos (POS)
+# PLAN: Editar pedido desde el visor
 
 ## Skills
 
@@ -7,122 +7,122 @@
 
 ## Base
 
-- SPEC: `PedidosSpec.md`
-- Patrones: `anotaciones` (módulo + MySQL), menú en `PosView.vue`, `schema.sql` + `db:init`
+- SPEC actualizado: `PedidosSpec.md` (Caso 3 — Editar pedido)
+- Código existente: `pedidosStorage`, rutas `/api/pedidos`, `PedidoDetalleView`, `PedidoNuevoView`, `pedidoPdf.js`
 
 ---
 
-## 1. Base de datos
+## 1. Backend — storage
 
-**Archivo:** `backend/db/schema.sql`
+**Archivo:** `backend/src/services/pedidosStorage.js`
 
-- Agregar tablas `pedidos` y `pedido_items` según SPEC.
-- Ejecutar / documentar: `npm run db:init` en backend (o migración SQL manual en Hostinger).
-
-**Storage:** `backend/src/services/pedidosStorage.js`
-
-- `listPedidos({ page, limit })` → `{ total, pedidos }` orden `fecha_creacion DESC`
-- `getPedido(id)` → cabecera + ítems
-- `createPedido({ dirigidoA, items })` → UUID, estado `en_proceso`, insert transaccional
-- `updatePedidoEstado(id, estado)` → valida ENUM
-
----
-
-## 2. API
-
-**Archivo:** `backend/src/routes/api.js` (o router dedicado montado igual)
-
-- Schemas Zod para query listado, body create, body patch estado.
-- Rutas del SPEC.
-- Mapear camelCase API ↔ snake_case DB.
-
-**Tests (opcional pero útil):** smoke con storage en memoria o skip si no hay DB en CI.
+- Agregar `updatePedido(id, { dirigidoA, items })`:
+  1. Verificar que el pedido exista; si no → `null`.
+  2. Transacción:
+     - `UPDATE pedidos SET dirigido_a = ? WHERE id = ?` (**sin** tocar `estado` ni `fecha_creacion`).
+     - `DELETE FROM pedido_items WHERE pedido_id = ?`.
+     - Insertar el nuevo conjunto de ítems (mismo mapping que `createPedido`).
+  3. Commit → `return getPedido(id)`.
+- Exportar `updatePedido`.
 
 ---
 
-## 3. Frontend — módulo
+## 2. Backend — API
 
-### Rutas (`frontend/src/router/index.js`)
+**Archivo:** `backend/src/routes/api.js`
 
-- `pedidos` → `PedidosListView`
-- `pedidos-nuevo` → `PedidoNuevoView`
-- `pedidos-detalle` → `PedidoDetalleView`
+- Reutilizar (o extrar) el schema Zod de create para el body del PUT
+  (`dirigidoA` + `items` con las mismas reglas).
+- `PUT /api/pedidos/:id`:
+  - Parse body.
+  - `pedidosStorage.updatePedido(...)`.
+  - 404 si no existe.
+  - 200 con el pedido actualizado.
+- Mantener `PATCH /api/pedidos/:id` solo para estado (sin cambios de contrato).
+- **Orden de rutas:** `PUT` y `PATCH` en `/:id` pueden coexistir; no hay conflicto con Express.
 
-### Menú (`PosView.vue`)
+**Tests:** `backend/tests/api.test.js` (o archivo pedidos si se prefiere)
 
-- `router-link` **Pedidos** → `/pedidos`
-
-### `pedidosService.js`
-
-- Wrappers axios: `list`, `get`, `create`, `updateEstado`
-
-### `pedidosStore.js`
-
-- Estado listado (page, total, loading, error)
-- Acciones cargar / crear
-
-### Vistas
-
-1. **PedidosListView**
-   - Tabla + paginación
-   - Botón Agregar pedido
-   - Click fila → detalle
-
-2. **PedidoNuevoView**
-   - Campo Dirigido a
-   - Form sección ítem + botones Agregar / Actualizar ítem
-   - Tabla CRUD local (array en `ref`)
-   - Generar pedido → POST → si OK, UI éxito + **Descargar PDF**
-   - Link volver al listado
-
-3. **PedidoDetalleView**
-   - Datos + ítems
-   - Select cambiar estado → PATCH
-   - Descargar PDF de nuevo
+- Crear pedido → PUT con ítems cambiados → GET refleja cambios; estado y fecha intactos.
+- PUT a id inexistente → 404.
+- PUT sin ítems / dirigido vacío → 400.
+- PATCH estado sigue funcionando.
 
 ---
 
-## 4. PDF
+## 3. Frontend — service / store
 
-- Util `frontend/src/modules/pedidos/utils/pedidoPdf.js`
-- Usa `printHtmlInIframe` de `invoicePrint.js` (**sin `window.open`**).
-- Encabezado: `frontend/public/pedido-header.png` (Nari Universe), embebido en el HTML para impresión fiable.
-- **Sin campo estado** en el PDF.
-- El diálogo del navegador permite “Guardar como PDF”.
+**`pedidosService.js`**
 
----
+- `updatePedido(id, { dirigidoA, items })` → `api.put(/pedidos/${id}, ...)`.
 
-## 5. Orden de ejecución
+**`pedidosStore.js`**
 
-1. Schema MySQL + `pedidosStorage`
-2. Rutas API + validación
-3. Service + store frontend
-4. ListView + link menú
-5. NuevoView (CRUD ítems + generar)
-6. DetalleView (estado + PDF)
-7. Util PDF
-8. QA manual
-9. Deploy: `npm run build` + commit `dist` **solo si el usuario lo pide**
+- Opcional: acción `actualizar`; el detalle/editar pueden llamar al service directo (como hoy con estado). Preferir service directo para no inflar el store si no hace falta.
 
 ---
 
-## 6. QA manual
+## 4. Frontend — rutas y vistas
 
-1. Menú POS → Pedidos.
-2. Listado vacío → mensaje + Agregar.
-3. Crear pedido con 2–3 ítems → aparece en listado primero.
-4. Paginación con >20 pedidos (o bajar limit en test).
-5. Validación: sin ítems / sin dirigido a.
-6. Editar/eliminar ítem en formulario antes de generar.
-7. PDF descarga/impresión legible.
-8. Cambiar estado en detalle; se refleja en listado.
-9. Mobile ~390px.
+**`router/index.js`**
+
+- Ruta `pedidos-editar`: `/pedidos/:id/editar` → `PedidoEditarView.vue`
+  (declarar **antes** o con path más específico que no choque; con Vue Router 4 el path literal `/pedidos/:id/editar` es inequívoco frente a `/pedidos/:id`).
+
+**`PedidoDetalleView.vue`**
+
+- Botón **Editar pedido** → `router.push(/pedidos/${id}/editar)`.
+
+**`PedidoEditarView.vue`** (nueva)
+
+- Al montar: `GET /pedidos/:id` → precargar `dirigidoA` + `items` en refs locales (mismo modelo que Nuevo).
+- Reutilizar el patrón UI de `PedidoNuevoView` (sección dinámica + CRUD).
+- Mostrar `id` y `fechaCreacion` en solo lectura.
+- **Guardar cambios** → PUT → éxito + PDF + link al detalle.
+- **Cancelar** → volver a `/pedidos/:id` sin PUT.
+- Errores: 404 / validación.
+
+Opcional de implementación (si reduce duplicación): extraer un componente compartido
+`PedidoFormItems.vue` usado por Nuevo y Editar. No es obligatorio si el duplicado es
+pequeño; priorizar claridad.
+
+---
+
+## 5. PDF
+
+- Sin cambios de util: tras PUT exitoso, llamar `descargarPedidoPdf(pedidoActualizado)`.
+- Verificar que el PDF no incluye estado y sí refleja ítems nuevos.
+
+---
+
+## 6. Orden de ejecución
+
+1. `updatePedido` en storage + tests unitarios/API.
+2. Ruta `PUT /api/pedidos/:id`.
+3. `pedidosService.updatePedido`.
+4. `PedidoEditarView` + ruta router.
+5. Botón en `PedidoDetalleView`.
+6. QA manual.
+7. Deploy / `dist` **solo si el usuario lo pide**.
+
+---
+
+## 7. QA manual
+
+1. Detalle de un pedido existente → **Editar pedido**.
+2. Cambiar dirigido a; agregar un ítem; editar otro; eliminar uno → Guardar.
+3. Volver al detalle: datos actualizados; estado y fecha iguales.
+4. Descargar PDF: refleja cambios; sin estado.
+5. Cancelar sin guardar → detalle intacto.
+6. Validación: vaciar ítems → no guarda.
+7. URL con id inventado → mensaje 404.
+8. Mobile ~390px.
 
 ---
 
 ## Impacto
 
-- Backend: schema + storage + rutas.
-- Frontend: módulo nuevo + 1 link menú.
-- **Sin WordPress / WooCommerce:** no usar `wooClient` ni endpoints WC; solo MySQL (`pedidosStorage`).
-- Dependencia PDF: ninguna si se usa print HTML.
+- Backend: 1 método storage + 1 ruta PUT + tests.
+- Frontend: 1 vista nueva, 1 botón en detalle, 1 método service, 1 ruta.
+- Schema MySQL: **sin cambios**.
+- WooCommerce: **sin uso**.
