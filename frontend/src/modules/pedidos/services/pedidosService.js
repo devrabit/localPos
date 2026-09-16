@@ -19,3 +19,8 @@ export async function updatePedidoEstado(id, estado) {
   const { data } = await api.patch(`/pedidos/${id}`, { estado })
   return data
 }
+
+export async function updatePedido(id, payload) {
+  const { data } = await api.put(`/pedidos/${id}`, payload)
+  return data
+}

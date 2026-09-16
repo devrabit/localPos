@@ -14,6 +14,7 @@ const AnotacionDetalleView = () => import('../modules/anotaciones/views/Anotacio
 const PedidosListView = () => import('../modules/pedidos/views/PedidosListView.vue')
 const PedidoNuevoView = () => import('../modules/pedidos/views/PedidoNuevoView.vue')
 const PedidoDetalleView = () => import('../modules/pedidos/views/PedidoDetalleView.vue')
+const PedidoEditarView = () => import('../modules/pedidos/views/PedidoEditarView.vue')
 
 const router = createRouter({
   history: createWebHistory(),
@@ -82,6 +83,11 @@ const router = createRouter({
       path: '/pedidos/nuevo',
       name: 'pedidos-nuevo',
       component: PedidoNuevoView,
+    },
+    {
+      path: '/pedidos/:id/editar',
+      name: 'pedidos-editar',
+      component: PedidoEditarView,
     },
     {
       path: '/pedidos/:id',
