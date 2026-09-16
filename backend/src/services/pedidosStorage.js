@@ -167,10 +167,51 @@ async function updatePedidoEstado(id, estado) {
   return getPedido(id)
 }
 
+/**
+ * Reemplaza dirigido_a + conjunto de items. No toca estado ni fecha_creacion.
+ */
+async function updatePedido(id, { dirigidoA, items }) {
+  const existing = await getPedido(id)
+  if (!existing) return null
+
+  const pool = getPool()
+  const conn = await pool.getConnection()
+
+  try {
+    await conn.beginTransaction()
+    await conn.execute('UPDATE pedidos SET dirigido_a = ? WHERE id = ?', [dirigidoA, id])
+    await conn.execute('DELETE FROM pedido_items WHERE pedido_id = ?', [id])
+
+    for (const item of items) {
+      const itemId = newId('pit')
+      const nombreProducto = String(item.nombreProducto || '').trim()
+      const referencia = String(item.referencia || '').trim()
+      const cantidad = Number(item.cantidad)
+      const descripcion = String(item.descripcion || '').trim()
+
+      await conn.execute(
+        `INSERT INTO pedido_items (
+           id, pedido_id, nombre_producto, referencia, cantidad, descripcion
+         ) VALUES (?, ?, ?, ?, ?, ?)`,
+        [itemId, id, nombreProducto, referencia, cantidad, descripcion || null],
+      )
+    }
+
+    await conn.commit()
+    return getPedido(id)
+  } catch (err) {
+    await conn.rollback()
+    throw err
+  } finally {
+    conn.release()
+  }
+}
+
 module.exports = {
   ESTADOS,
   listPedidos,
   getPedido,
   createPedido,
+  updatePedido,
   updatePedidoEstado,
 }

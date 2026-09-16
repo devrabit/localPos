@@ -128,6 +128,13 @@ onMounted(() => {
           </button>
           <button
             type="button"
+            class="inline-flex min-h-12 items-center rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-base font-semibold text-indigo-900"
+            @click="router.push({ name: 'pedidos-editar', params: { id: pedido.id } })"
+          >
+            Editar pedido
+          </button>
+          <button
+            type="button"
             class="inline-flex min-h-12 items-center rounded-lg bg-indigo-600 px-4 py-2 text-base font-semibold text-white"
             @click="onDescargarPdf"
           >

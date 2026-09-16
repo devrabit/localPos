@@ -906,6 +906,28 @@ function createApiRouter(woo = defaultWoo) {
     }
   })
 
+  router.put('/pedidos/:id', async (req, res, next) => {
+    try {
+      const payload = createPedidoSchema.parse(req.body)
+      const updated = await pedidosStorage.updatePedido(req.params.id, {
+        dirigidoA: payload.dirigidoA,
+        items: payload.items.map((it) => ({
+          ...it,
+          descripcion: String(it.descripcion || '').trim(),
+        })),
+      })
+      if (!updated) {
+        return res.status(404).json({ error: 'Pedido no encontrado' })
+      }
+      res.json(updated)
+    } catch (error) {
+      if (error?.name === 'ZodError') {
+        return res.status(400).json({ error: error.issues?.[0]?.message || 'Datos invalidos' })
+      }
+      next(error)
+    }
+  })
+
   router.patch('/pedidos/:id', async (req, res, next) => {
     try {
       const { estado } = updatePedidoEstadoSchema.parse(req.body)
