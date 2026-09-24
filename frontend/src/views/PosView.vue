@@ -1,6 +1,7 @@
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { nextTick, onMounted, ref, watch } from 'vue'
 import ProductList from '../components/ProductList.vue'
+import ChatAsistentePanel from '../components/ChatAsistentePanel.vue'
 import VariationPickerModal from '../components/VariationPickerModal.vue'
 import CartPanel from '../components/CartPanel.vue'
 import CustomerPanel from '../components/CustomerPanel.vue'
@@ -28,7 +29,64 @@ const escaneoBusy = ref(false)
 const escaneoRemotoLoading = ref(false)
 const selectedPaymentMethod = ref('')
 const paymentError = ref('')
+/** cerrado | abierto | minimizado */
+const chatEstado = ref('cerrado')
+const chatPanelRef = ref(null)
+const chatSessionId = ref('')
+const chatEnviando = ref(false)
 let scanFeedbackTimer = null
+
+function nuevoSessionId() {
+  return `pos:web:${crypto.randomUUID()}`
+}
+
+function abrirChat() {
+  if (chatEstado.value === 'cerrado') {
+    chatSessionId.value = nuevoSessionId()
+  }
+  chatEstado.value = 'abierto'
+  nextTick(() => chatPanelRef.value?.focus())
+}
+
+function minimizarChat() {
+  chatEstado.value = 'minimizado'
+}
+
+function cerrarChat() {
+  chatEstado.value = 'cerrado'
+}
+
+function onNuevaConsulta() {
+  if (chatEnviando.value) return
+  chatSessionId.value = nuevoSessionId()
+  chatPanelRef.value?.reiniciar()
+}
+
+async function onChatEnviar({ texto }) {
+  if (chatEnviando.value) return
+  chatEnviando.value = true
+  try {
+    const { data } = await api.post('/asesoria', {
+      question: texto,
+      sessionId: chatSessionId.value,
+    })
+    chatPanelRef.value?.agregarAsistente({
+      texto: data.answer,
+      clientMessage: data.clientMessage ?? null,
+      sources: data.sources ?? [],
+      esError: false,
+    })
+  } catch (err) {
+    chatPanelRef.value?.agregarAsistente({
+      texto: err?.response?.data?.error || 'El asesor no responde. Intenta de nuevo.',
+      clientMessage: null,
+      sources: [],
+      esError: true,
+    })
+  } finally {
+    chatEnviando.value = false
+  }
+}
 
 function setScanFeedback(tipo, texto) {
   if (scanFeedbackTimer) clearTimeout(scanFeedbackTimer)
@@ -324,6 +382,74 @@ async function imprimirFacturaUltimaVenta() {
         @select="(cliente) => (clientesStore.selectedCliente = cliente)"
         @create="crearCliente"
       />
+    </div>
+
+    <!-- Chat en z-40: los modales (z-50) deben quedar por encima. -->
+    <button
+      v-show="chatEstado === 'cerrado'"
+      type="button"
+      data-no-barcode-scan
+      class="fixed bottom-4 right-4 z-40 inline-flex h-14 w-14 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg"
+      aria-label="Abrir chat"
+      title="Abrir chat"
+      @click="abrirChat"
+    >
+      <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path
+          d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+    </button>
+
+    <!-- Montado tambien al minimizar: los mensajes viven en el componente. -->
+    <ChatAsistentePanel
+      v-if="chatEstado !== 'cerrado'"
+      v-show="chatEstado === 'abierto'"
+      ref="chatPanelRef"
+      :enviando="chatEnviando"
+      @enviar="onChatEnviar"
+      @nueva-consulta="onNuevaConsulta"
+      @minimizar="minimizarChat"
+      @cerrar="cerrarChat"
+    />
+
+    <div
+      v-show="chatEstado === 'minimizado'"
+      data-no-barcode-scan
+      class="fixed bottom-4 right-4 z-40 flex items-center gap-2 rounded-full bg-white py-2 pl-3 pr-2 shadow-lg ring-1 ring-slate-200"
+    >
+      <button
+        type="button"
+        class="flex items-center gap-2 text-sm font-semibold text-slate-800"
+        aria-label="Restaurar chat"
+        @click="abrirChat"
+      >
+        <svg class="h-5 w-5 text-indigo-600" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        <span>Asistente POS</span>
+      </button>
+      <button
+        type="button"
+        class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700"
+        aria-label="Cerrar chat"
+        title="Cerrar"
+        @click="cerrarChat"
+      >
+        <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M6 6l8 8M14 6l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+        </svg>
+      </button>
     </div>
   </main>
 </template>
