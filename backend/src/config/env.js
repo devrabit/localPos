@@ -22,7 +22,20 @@ function assertEnv() {
   }
 }
 
+/**
+ * Lee el gateway en cada llamada. Los tests cambian process.env despues de importar
+ * el modulo, y el objeto `env` queda congelado al arrancar.
+ */
+function readGatewayEnv() {
+  const rawUrl = (process.env.GATEWAY_URL || 'https://nariaigateway.nariuniverse.com').trim()
+  return {
+    url: rawUrl.replace(/\/+$/, ''),
+    apiKey: (process.env.GATEWAY_API_KEY || '').trim(),
+  }
+}
+
 module.exports = {
   env,
   assertEnv,
+  readGatewayEnv,
 }
