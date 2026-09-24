@@ -18,6 +18,7 @@ const { env } = require('../config/env')
 const { createOutflow, listOutflows } = require('../services/outflowsStorage')
 const annotationsStorage = require('../services/annotationsStorage')
 const pedidosStorage = require('../services/pedidosStorage')
+const { askVendedor: defaultAskVendedor } = require('../services/asesoriaGateway')
 
 const createCustomerSchema = z.object({
   nombre: z.string().min(2),
@@ -392,8 +393,14 @@ function logScan(codigo, resultado, m) {
   )
 }
 
-function createApiRouter(woo = defaultWoo) {
+const asesoriaSchema = z.object({
+  question: z.string().trim().min(3).max(600),
+  sessionId: z.string().trim().regex(/^pos:web:[A-Za-z0-9-]+$/).max(128),
+})
+
+function createApiRouter(woo = defaultWoo, deps = {}) {
   const router = express.Router()
+  const askVendedor = deps.askVendedor || defaultAskVendedor
 
   router.use(createPrintRouter(woo))
   router.use('/barcode', createBarcodeRouter(woo))
@@ -784,6 +791,44 @@ function createApiRouter(woo = defaultWoo) {
       const payload = createOutflowSchema.parse(req.body)
       const salida = await createOutflow(payload)
       res.status(201).json(salida)
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  router.post('/asesoria', async (req, res, next) => {
+    try {
+      const parsed = asesoriaSchema.safeParse(req.body)
+      if (!parsed.success) {
+        const path = parsed.error.issues[0]?.path?.[0]
+        if (path === 'sessionId') {
+          return res.status(400).json({
+            error: 'La sesión de consulta no es válida.',
+            code: 'BAD_REQUEST',
+          })
+        }
+        return res.status(400).json({
+          error: 'La pregunta debe tener entre 3 y 600 caracteres.',
+          code: 'BAD_REQUEST',
+        })
+      }
+
+      const result = await askVendedor(parsed.data.question, parsed.data.sessionId)
+      if (!result.ok) {
+        return res.status(result.status).json({
+          error: result.error,
+          code: result.code,
+          requestId: result.requestId,
+        })
+      }
+
+      return res.json({
+        answer: result.answer,
+        clientMessage: result.clientMessage,
+        sources: result.sources,
+        needsClarification: result.needsClarification,
+        requestId: result.requestId,
+      })
     } catch (error) {
       next(error)
     }

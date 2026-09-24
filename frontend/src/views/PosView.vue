@@ -29,6 +29,8 @@ const escaneoApiLoading = ref(false)
 /** cerrado | abierto | minimizado */
 const chatEstado = ref('cerrado')
 const chatPanelRef = ref(null)
+const chatSessionId = ref('')
+const chatEnviando = ref(false)
 let scanFeedbackTimer = null
 const MODULE_ORDER_STORAGE_KEY = 'naripos:dashboard-module-order'
 const DEFAULT_MODULE_ORDER = ['search', 'products', 'cart', 'customers']
@@ -109,7 +111,14 @@ function guardarOrdenModulos(order) {
 
 const moduleOrder = ref(leerOrdenModulosGuardado())
 
+function nuevoSessionId() {
+  return `pos:web:${crypto.randomUUID()}`
+}
+
 function abrirChat() {
+  if (chatEstado.value === 'cerrado') {
+    chatSessionId.value = nuevoSessionId()
+  }
   chatEstado.value = 'abierto'
   nextTick(() => chatPanelRef.value?.focus())
 }
@@ -122,9 +131,37 @@ function cerrarChat() {
   chatEstado.value = 'cerrado'
 }
 
-/** Punto de integracion del APIAIGateway: hoy el panel solo muestra el mensaje local. */
-function onChatEnviar() {}
+function onNuevaConsulta() {
+  if (chatEnviando.value) return
+  chatSessionId.value = nuevoSessionId()
+  chatPanelRef.value?.reiniciar()
+}
 
+async function onChatEnviar({ texto }) {
+  if (chatEnviando.value) return
+  chatEnviando.value = true
+  try {
+    const { data } = await api.post('/asesoria', {
+      question: texto,
+      sessionId: chatSessionId.value,
+    })
+    chatPanelRef.value?.agregarAsistente({
+      texto: data.answer,
+      clientMessage: data.clientMessage ?? null,
+      sources: data.sources ?? [],
+      esError: false,
+    })
+  } catch (err) {
+    chatPanelRef.value?.agregarAsistente({
+      texto: err?.response?.data?.error || 'El asesor no responde. Intenta de nuevo.',
+      clientMessage: null,
+      sources: [],
+      esError: true,
+    })
+  } finally {
+    chatEnviando.value = false
+  }
+}
 function setScanFeedback(tipo, texto) {
   if (scanFeedbackTimer) clearTimeout(scanFeedbackTimer)
   scanFeedback.value = { tipo, texto }
@@ -675,7 +712,9 @@ async function imprimirFacturaUltimaVenta() {
       v-if="chatEstado !== 'cerrado'"
       v-show="chatEstado === 'abierto'"
       ref="chatPanelRef"
+      :enviando="chatEnviando"
       @enviar="onChatEnviar"
+      @nueva-consulta="onNuevaConsulta"
       @minimizar="minimizarChat"
       @cerrar="cerrarChat"
     />
