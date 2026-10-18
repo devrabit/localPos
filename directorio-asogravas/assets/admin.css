@@ -1,0 +1,98 @@
+.directorio-asogravas .empresa-campo {
+	margin: 0 0 18px;
+}
+
+.directorio-asogravas .empresa-nombre {
+	margin: 12px 0 6px;
+}
+
+.directorio-asogravas .empresa-campo label strong,
+.directorio-asogravas .empresa-redes legend strong,
+.directorio-asogravas .empresa-casos legend strong {
+	font-size: 13px;
+}
+
+.directorio-asogravas .empresa-campo .description {
+	margin: 2px 0 6px;
+}
+
+.directorio-asogravas .empresa-error {
+	color: #b32d2e;
+	margin: 6px 0 0;
+}
+
+.directorio-asogravas .empresa-campo-error input[type="text"],
+.directorio-asogravas .empresa-campo-error textarea,
+.directorio-asogravas .empresa-campo-error input[type="date"] {
+	border-color: #b32d2e;
+}
+
+.directorio-asogravas .empresa-redes,
+.directorio-asogravas .empresa-casos {
+	margin: 0 0 18px;
+	padding: 12px 12px 0;
+	border: 1px solid #dcdcde;
+}
+
+.directorio-asogravas .empresa-galeria-lista {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+	margin: 8px 0;
+	padding: 0;
+	list-style: none;
+}
+
+.directorio-asogravas .empresa-galeria-lista li {
+	margin: 0;
+	width: 120px;
+}
+
+.directorio-asogravas .empresa-galeria-lista img,
+.directorio-asogravas .empresa-archivo-vista img {
+	display: block;
+	max-width: 120px;
+	height: auto;
+	background: #fff;
+	border: 1px solid #dcdcde;
+}
+
+.directorio-asogravas .empresa-archivo-vista {
+	margin: 6px 0;
+}
+
+.directorio-asogravas .empresa-pdf-nombre,
+.directorio-asogravas .empresa-archivo-desconocido {
+	display: inline-block;
+	margin-bottom: 6px;
+}
+
+.directorio-asogravas .empresa-destacado label {
+	font-weight: 400;
+}
+
+.directorio-asogravas .empresa-volver-borrador {
+	margin: 0 0 12px;
+}
+
+.directorio-asogravas .empresa-cotizacion {
+	margin: 16px 0 8px;
+	padding: 12px 16px;
+	border: 1px solid #c3c4c7;
+	background: #f6f7f7;
+}
+
+.directorio-asogravas .empresa-cotizacion p {
+	margin: 0;
+	font-size: 14px;
+}
+
+.directorio-asogravas #visibility,
+.directorio-asogravas #preview-action {
+	display: none;
+}
+
+.directorio-asogravas .empresa-errores-resumen {
+	margin: 0 0 8px 18px;
+	list-style: disc;
+}
