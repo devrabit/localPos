@@ -1,4 +1,6 @@
 <script setup>
+import { nextTick, ref } from 'vue'
+
 defineProps({
   modelValue: {
     type: String,
@@ -14,13 +16,28 @@ defineProps({
   },
 })
 
-defineEmits(['update:modelValue', 'update:modo', 'enter'])
+const emit = defineEmits(['update:modelValue', 'update:modo', 'enter'])
+
+const campoRef = ref(null)
+const botonEscanearRef = ref(null)
+
+function quitarFoco() {
+  campoRef.value?.blur()
+  botonEscanearRef.value?.blur()
+}
+
+function entrarEnEscanear() {
+  emit('update:modo', 'escanear')
+  quitarFoco()
+  nextTick(quitarFoco)
+}
 </script>
 
 <template>
   <div>
     <div class="flex flex-col gap-2 sm:flex-row sm:items-stretch">
       <input
+        ref="campoRef"
         :value="modelValue"
         type="text"
         data-no-barcode-scan
@@ -39,13 +56,15 @@ defineEmits(['update:modelValue', 'update:modo', 'enter'])
         aria-label="Modo del buscador"
       >
         <button
+          ref="botonEscanearRef"
           type="button"
           class="min-h-10 flex-1 rounded-md px-3 text-sm font-semibold sm:flex-none"
           :class="
             modo === 'escanear' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'
           "
           :aria-pressed="modo === 'escanear'"
-          @click="$emit('update:modo', 'escanear')"
+          @mousedown.prevent
+          @click="entrarEnEscanear"
         >
           Escanear
         </button>
