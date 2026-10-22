@@ -9,6 +9,6 @@ const api = axios.create({
 })
 
 /** El escaneo se resuelve por lookup de SKU: si tarda mas, el cajero necesita el aviso ya. */
-export const SCAN_TIMEOUT_MS = 15000
+export const SCAN_TIMEOUT_MS = 7000
 
 export default api
