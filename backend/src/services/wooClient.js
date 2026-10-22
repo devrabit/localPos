@@ -5,7 +5,7 @@ const { env } = require('../config/env')
 
 const LIST_TIMEOUT_MS = 30000
 /** Consulta indexada en Woo (wc_product_meta_lookup): si tarda mas, no vale la pena esperar. */
-const LOOKUP_TIMEOUT_MS = 10000
+const LOOKUP_TIMEOUT_MS = 7000
 
 /** Reutilizar sockets: el escaneo dispara varias peticiones seguidas al mismo host. */
 const agentOptions = { keepAlive: true, maxSockets: 32 }
