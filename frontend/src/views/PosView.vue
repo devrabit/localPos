@@ -1,6 +1,7 @@
 <script setup>
 import { nextTick, onMounted, ref, watch } from 'vue'
 import ProductList from '../components/ProductList.vue'
+import BuscadorPos from '../components/BuscadorPos.vue'
 import ChatAsistentePanel from '../components/ChatAsistentePanel.vue'
 import VariationPickerModal from '../components/VariationPickerModal.vue'
 import CartPanel from '../components/CartPanel.vue'
@@ -17,8 +18,21 @@ const productosStore = useProductosStore()
 const carritoStore = useCarritoStore()
 const clientesStore = useClientesStore()
 
+const MODO_BUSQUEDA_KEY = 'naripos:modo-busqueda'
+
+function leerModoBusqueda() {
+  try {
+    const saved = localStorage.getItem(MODO_BUSQUEDA_KEY)
+    if (saved === 'buscar' || saved === 'escanear') return saved
+  } catch {
+    /* storage no disponible */
+  }
+  return 'escanear'
+}
+
 const debounceTimer = ref(null)
 const searchInput = ref('')
+const modoBusqueda = ref(leerModoBusqueda())
 const customerPanelRef = ref(null)
 const variableProduct = ref(null)
 const facturaLoading = ref(false)
@@ -188,9 +202,23 @@ function desambiguarCoincidenciasEscaneo(locales, code) {
 /**
  * Lector: primero SKU exacto del padre en cache; si no, GET /productos/escaneo (Woo resuelve variaciones).
  */
+function setModoBusqueda(modo) {
+  if (modo !== 'escanear' && modo !== 'buscar') return
+  modoBusqueda.value = modo
+  try {
+    localStorage.setItem(MODO_BUSQUEDA_KEY, modo)
+  } catch {
+    /* storage no disponible */
+  }
+}
+
 function onBusquedaEnter() {
   const q = searchInput.value.trim()
   if (!q) return
+  if (modoBusqueda.value === 'buscar') {
+    productosStore.query = q
+    return
+  }
   if (productosStore.coincidenciasBusqueda(q).length > 0) return
   if (!esCodigoEscaneable(q)) return
   encolarCodigoEscaneado(q)
@@ -291,7 +319,7 @@ async function procesarCodigoEscaneado(code) {
 
 useBarcodeScanner({
   onDecoded: encolarCodigoEscaneado,
-  isEnabled: () => !carritoStore.creatingOrder,
+  isEnabled: () => modoBusqueda.value === 'escanear' && !carritoStore.creatingOrder,
 })
 
 /** Una lectura que llega mientras la anterior sigue en Woo no se descarta: queda en cola. */
@@ -531,19 +559,14 @@ async function imprimirFacturaUltimaVenta() {
           </div>
         </div>
 
-        <div v-if="moduleOrder[0] === 'search'">
-          <input
-            v-model="searchInput"
-            type="text"
-            placeholder="Nombre o SKU padre; codigo de variacion: Enter si no aparece en la lista"
-            data-no-barcode-scan
-            class="min-h-12 w-full rounded-lg border border-slate-300 px-3 py-3 text-base"
-            @keydown.enter.prevent="onBusquedaEnter"
-          />
-          <p v-if="escaneoApiLoading" class="mt-2 text-sm font-medium text-slate-600" role="status">
-            Buscando codigo...
-          </p>
-        </div>
+        <BuscadorPos
+          v-if="moduleOrder[0] === 'search'"
+          v-model="searchInput"
+          :modo="modoBusqueda"
+          :cargando="escaneoApiLoading"
+          @update:modo="setModoBusqueda"
+          @enter="onBusquedaEnter"
+        />
 
         <ProductList
           v-else-if="moduleOrder[0] === 'products'"
@@ -656,19 +679,14 @@ async function imprimirFacturaUltimaVenta() {
             </div>
           </div>
 
-          <div v-if="moduleKey === 'search'">
-            <input
-              v-model="searchInput"
-              type="text"
-              placeholder="Nombre o SKU padre; codigo de variacion: Enter si no aparece en la lista"
-              data-no-barcode-scan
-              class="min-h-12 w-full rounded-lg border border-slate-300 px-3 py-3 text-base"
-              @keydown.enter.prevent="onBusquedaEnter"
-            />
-            <p v-if="escaneoApiLoading" class="mt-2 text-sm font-medium text-slate-600" role="status">
-              Buscando codigo...
-            </p>
-          </div>
+          <BuscadorPos
+            v-if="moduleKey === 'search'"
+            v-model="searchInput"
+            :modo="modoBusqueda"
+            :cargando="escaneoApiLoading"
+            @update:modo="setModoBusqueda"
+            @enter="onBusquedaEnter"
+          />
 
           <ProductList
             v-else-if="moduleKey === 'products'"
