@@ -438,12 +438,22 @@ function createApiRouter(woo = defaultWoo, deps = {}) {
       const metricas = createScanMetrics()
       const inicio = Date.now()
       const inicioListado = Date.now()
+      const skuLookup =
+        typeof woo.fetchProductsBySku === 'function'
+          ? woo.fetchProductsBySku(q).then(
+              (rows) => (Array.isArray(rows) ? rows : []),
+              () => null,
+            )
+          : Promise.resolve(null)
       const products = await getCachedProductList(woo)
       metricas.msListado = Date.now() - inicioListado
+      const prefetchSkuRows = await skuLookup
       const hit = await findProductByScanCode(products, q, (id) => woo.fetchProductVariations(id), {
         fetchProductsBySku: woo.fetchProductsBySku,
         fetchProductById: woo.fetchProductById,
         fetchVariationById: woo.fetchVariationById,
+        prefetchSkuRows,
+        usarCachePositiva: true,
         metricas,
       })
       metricas.msTotal = Date.now() - inicio

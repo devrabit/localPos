@@ -327,6 +327,41 @@ test('las variaciones de un mismo padre se piden una sola vez', async () => {
   assert.equal(llamadas, 1)
 })
 
+test('un fallo de Woo no deja el codigo como inexistente', async () => {
+  invalidateProductosScanCache()
+  const products = [{ id: 10, type: 'variable', name: 'Camiseta', price: '0', sku: '', manage_stock: false }]
+  let llamadas = 0
+  const deps = {
+    fetchProductsBySku: async () => {
+      llamadas += 1
+      throw new Error('woo timeout')
+    },
+  }
+  assert.equal(await findProductByScanCode(products, 'VAR-9', async () => [], deps), null)
+  assert.equal(await findProductByScanCode(products, 'VAR-9', async () => [], deps), null)
+  assert.equal(llamadas, 2)
+})
+
+test('la cache positiva responde el segundo escaneo sin volver a Woo', async () => {
+  invalidateProductosScanCache()
+  const products = [
+    { id: 1, type: 'simple', name: 'A', price: '1', sku: 'S-1', manage_stock: true, stock_quantity: 3 },
+  ]
+  let llamadas = 0
+  const deps = {
+    usarCachePositiva: true,
+    fetchProductsBySku: async () => {
+      llamadas += 1
+      return []
+    },
+  }
+  const primera = await findProductByScanCode(products, 'S-1', async () => [], deps)
+  const segunda = await findProductByScanCode([], 'S-1', async () => [], deps)
+  assert.equal(primera.tipo, 'simple')
+  assert.equal(segunda.producto.id, 1)
+  assert.equal(llamadas, 0)
+})
+
 test('un codigo inexistente no repite el barrido (cache negativa)', async () => {
   invalidateProductosScanCache()
   const products = [{ id: 10, type: 'variable', name: 'Camiseta', price: '0', sku: '', manage_stock: false }]

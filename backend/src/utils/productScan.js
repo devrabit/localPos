@@ -16,6 +16,8 @@ let generacion = 0
 let listRefreshGeneracion = -1
 const variationsCache = new Map()
 const negativeCache = new Map()
+const positiveCache = new Map()
+const POSITIVE_CACHE_MS = Number(process.env.NARIPOS_SCAN_POSITIVE_MS || 120000)
 
 function createScanMetrics() {
   return {
@@ -36,6 +38,7 @@ function invalidateProductosScanCache() {
   listRefreshGeneracion = -1
   variationsCache.clear()
   negativeCache.clear()
+  positiveCache.clear()
 }
 
 function refreshProductList(woo) {
@@ -99,6 +102,21 @@ function negativeCacheAdd(qNorm) {
   negativeCache.set(qNorm.toLowerCase(), Date.now())
 }
 
+function positiveCacheGet(qNorm) {
+  const entry = positiveCache.get(qNorm.toLowerCase())
+  if (!entry) return null
+  if (Date.now() - entry.at > POSITIVE_CACHE_MS) {
+    positiveCache.delete(qNorm.toLowerCase())
+    return null
+  }
+  return entry.hit
+}
+
+function positiveCacheSet(qNorm, hit) {
+  if (positiveCache.size >= 2000) positiveCache.clear()
+  positiveCache.set(qNorm.toLowerCase(), { hit, at: Date.now() })
+}
+
 function normalizeScanCode(raw) {
   if (raw == null) return ''
   let s = String(raw).trim().slice(0, 80)
@@ -149,8 +167,12 @@ async function lookupBySku(products, qNorm, deps, metricas) {
 
   const inicio = Date.now()
   try {
-    metricas.peticionesWoo += 1
-    const rows = await deps.fetchProductsBySku(qNorm)
+    let rows = deps.prefetchSkuRows
+    if (!Array.isArray(rows)) {
+      if (typeof deps.fetchProductsBySku !== 'function') return null
+      metricas.peticionesWoo += 1
+      rows = await deps.fetchProductsBySku(qNorm)
+    }
     const match = (Array.isArray(rows) ? rows : []).find((r) => skuMatchesScan(r?.sku, qNorm))
     if (!match) return null
 
@@ -174,6 +196,7 @@ async function lookupBySku(products, qNorm, deps, metricas) {
     if (!producto || !variacion) return null
     return { tipo: 'variacion', producto, variacion }
   } catch {
+    metricas.lookupError = true
     return null
   } finally {
     metricas.msLookup += Date.now() - inicio
@@ -195,6 +218,7 @@ function createCachedVariationFetcher(fetchVariationsRaw, metricas = null) {
 async function buscarVariacionPorBarrido(variableParents, qNorm, fetchVariationsRaw, metricas) {
   const inicio = Date.now()
   const fetchVars = createCachedVariationFetcher(fetchVariationsRaw, metricas)
+  let incompleto = false
 
   try {
     for (let i = 0; i < variableParents.length; i += VARIATION_FETCH_CONCURRENCY) {
@@ -204,6 +228,7 @@ async function buscarVariacionPorBarrido(variableParents, qNorm, fetchVariations
           try {
             return { p, vars: await fetchVars(p.id) }
           } catch {
+            incompleto = true
             return { p, vars: [] }
           }
         }),
@@ -219,6 +244,7 @@ async function buscarVariacionPorBarrido(variableParents, qNorm, fetchVariations
     }
     return null
   } finally {
+    if (incompleto) metricas.barridoIncompleto = true
     metricas.msVariaciones += Date.now() - inicio
   }
 }
@@ -238,38 +264,51 @@ async function findProductByScanCode(products, code, fetchVariationsRaw, deps = 
     return null
   }
 
+  if (deps.usarCachePositiva) {
+    const previa = positiveCacheGet(q)
+    if (previa) {
+      metricas.origen = 'cache-positiva'
+      return previa
+    }
+  }
+
+  const recordar = (hit) => {
+    if (deps.usarCachePositiva && hit) positiveCacheSet(q, hit)
+    return hit
+  }
+
   for (const p of products) {
     if (isVariableProductType(p.type)) continue
     const sku = skuFromEntity(p)
     if (sku && skuMatchesScan(sku, q)) {
       metricas.origen = 'catalogo'
-      return { tipo: 'simple', producto: p, variacion: null }
+      return recordar({ tipo: 'simple', producto: p, variacion: null })
     }
   }
 
   const porLookup = await lookupBySku(products, q, deps, metricas)
   if (porLookup) {
     metricas.origen = 'lookup'
-    return porLookup
+    return recordar(porLookup)
   }
 
   const variableParents = products.filter((p) => isVariableProductType(p.type))
   const porBarrido = await buscarVariacionPorBarrido(variableParents, q, fetchVariationsRaw, metricas)
   if (porBarrido) {
     metricas.origen = 'barrido'
-    return porBarrido
+    return recordar(porBarrido)
   }
 
   for (const p of variableParents) {
     const sku = skuFromEntity(p)
     if (sku && skuMatchesScan(sku, q)) {
       metricas.origen = 'catalogo'
-      return { tipo: 'variable_sin_elegir', producto: p, variacion: null }
+      return recordar({ tipo: 'variable_sin_elegir', producto: p, variacion: null })
     }
   }
 
   metricas.origen = 'no-encontrado'
-  negativeCacheAdd(q)
+  if (!metricas.lookupError && !metricas.barridoIncompleto) negativeCacheAdd(q)
   return null
 }
 
