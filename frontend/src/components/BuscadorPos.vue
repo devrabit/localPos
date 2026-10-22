@@ -83,7 +83,7 @@ function entrarEnBuscar() {
           :aria-pressed="modo === 'buscar'"
           @click="entrarEnBuscar"
         >
-          Buscar codigo
+          Manual
         </button>
       </div>
     </div>
@@ -94,7 +94,7 @@ function entrarEnBuscar() {
       {{
         modo === 'escanear'
           ? 'Modo escanear: el lector esta activo y el campo esta bloqueado.'
-          : 'Modo buscar: el lector esta apagado. Escribe para filtrar.'
+          : 'Modo manual: el lector esta apagado. Escribe para filtrar.'
       }}
     </p>
   </div>
