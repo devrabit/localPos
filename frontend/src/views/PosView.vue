@@ -10,7 +10,7 @@ import { useCarritoStore } from '../stores/carrito'
 import { useClientesStore } from '../stores/clientes'
 import { imprimirFactura } from '../utils/invoicePrint'
 import { useBarcodeScanner, playScanBeep } from '../composables/useBarcodeScanner'
-import { esCodigoEscaneable } from '../utils/scanCode'
+import { esCodigoEscaneable, limpiarCodigoLector } from '../utils/scanCode'
 import api, { SCAN_TIMEOUT_MS } from '../services/api'
 
 const productosStore = useProductosStore()
@@ -26,6 +26,12 @@ const facturaError = ref('')
 const scanFeedback = ref({ tipo: '', texto: '' })
 const escaneoBusy = ref(false)
 const escaneoApiLoading = ref(false)
+const colaEscaneo = []
+let drenandoEscaneo = false
+let ultimoCodigoEncolado = ''
+let ultimoCodigoEncoladoAt = 0
+/** Repetir el mismo codigo no vuelve a esperar a Woo en esta sesion. */
+const cacheRespuestaEscaneo = new Map()
 /** cerrado | abierto | minimizado */
 const chatEstado = ref('cerrado')
 const chatPanelRef = ref(null)
@@ -187,12 +193,11 @@ function onBusquedaEnter() {
   if (!q) return
   if (productosStore.coincidenciasBusqueda(q).length > 0) return
   if (!esCodigoEscaneable(q)) return
-  procesarCodigoEscaneado(q)
+  encolarCodigoEscaneado(q)
 }
 
 async function procesarCodigoEscaneado(code) {
-  if (escaneoBusy.value) return
-  const raw = String(code || '').trim()
+  const raw = limpiarCodigoLector(code)
   if (!raw) return
   escaneoBusy.value = true
   try {
@@ -230,10 +235,16 @@ async function procesarCodigoEscaneado(code) {
     }
 
     escaneoApiLoading.value = true
-    const { data } = await api.get('/productos/escaneo', {
-      params: { q: raw },
-      timeout: SCAN_TIMEOUT_MS,
-    })
+    const cacheKey = raw.toLowerCase()
+    let data = cacheRespuestaEscaneo.get(cacheKey)
+    if (!data) {
+      const response = await api.get('/productos/escaneo', {
+        params: { q: raw },
+        timeout: SCAN_TIMEOUT_MS,
+      })
+      data = response.data
+      cacheRespuestaEscaneo.set(cacheKey, data)
+    }
     if (data.sinStock) {
       setScanFeedback('error', 'Producto sin stock')
       return
@@ -279,9 +290,36 @@ async function procesarCodigoEscaneado(code) {
 }
 
 useBarcodeScanner({
-  onDecoded: procesarCodigoEscaneado,
-  isEnabled: () => !carritoStore.creatingOrder && !escaneoBusy.value,
+  onDecoded: encolarCodigoEscaneado,
+  isEnabled: () => !carritoStore.creatingOrder,
 })
+
+/** Una lectura que llega mientras la anterior sigue en Woo no se descarta: queda en cola. */
+function encolarCodigoEscaneado(code) {
+  const raw = limpiarCodigoLector(code)
+  if (!raw) return
+  const ahora = Date.now()
+  const clave = raw.toLowerCase()
+  if (clave === ultimoCodigoEncolado && ahora - ultimoCodigoEncoladoAt < 280) return
+  ultimoCodigoEncolado = clave
+  ultimoCodigoEncoladoAt = ahora
+  colaEscaneo.push(raw)
+  drenarColaEscaneo()
+}
+
+async function drenarColaEscaneo() {
+  if (drenandoEscaneo) return
+  drenandoEscaneo = true
+  try {
+    while (colaEscaneo.length) {
+      const siguiente = colaEscaneo.shift()
+      await procesarCodigoEscaneado(siguiente)
+    }
+  } finally {
+    drenandoEscaneo = false
+    if (colaEscaneo.length) drenarColaEscaneo()
+  }
+}
 
 function onVariacionElegida(payload) {
   carritoStore.agregarVariacion(payload)
