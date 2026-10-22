@@ -210,6 +210,10 @@ function setModoBusqueda(modo) {
   } catch {
     /* storage no disponible */
   }
+  if (modo === 'escanear') {
+    searchInput.value = ''
+    productosStore.query = ''
+  }
 }
 
 function onBusquedaEnter() {
