@@ -19,7 +19,7 @@ defineEmits(['update:modelValue', 'update:modo', 'enter'])
 
 <template>
   <div>
-    <div class="flex items-stretch gap-2">
+    <div class="flex flex-col gap-2 sm:flex-row sm:items-stretch">
       <input
         :value="modelValue"
         type="text"
@@ -34,13 +34,13 @@ defineEmits(['update:modelValue', 'update:modo', 'enter'])
         @keydown.enter.prevent="$emit('enter')"
       />
       <div
-        class="flex shrink-0 rounded-lg border border-slate-300 bg-white p-1"
+        class="flex w-full shrink-0 rounded-lg border border-slate-300 bg-white p-1 sm:w-auto"
         role="group"
         aria-label="Modo del buscador"
       >
         <button
           type="button"
-          class="min-h-10 rounded-md px-3 text-sm font-semibold"
+          class="min-h-10 flex-1 rounded-md px-3 text-sm font-semibold sm:flex-none"
           :class="
             modo === 'escanear' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'
           "
@@ -51,7 +51,7 @@ defineEmits(['update:modelValue', 'update:modo', 'enter'])
         </button>
         <button
           type="button"
-          class="min-h-10 rounded-md px-3 text-sm font-semibold"
+          class="min-h-10 flex-1 rounded-md px-3 text-sm font-semibold sm:flex-none"
           :class="
             modo === 'buscar' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'
           "
