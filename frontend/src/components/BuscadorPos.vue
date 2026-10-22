@@ -31,6 +31,11 @@ function entrarEnEscanear() {
   quitarFoco()
   nextTick(quitarFoco)
 }
+
+function entrarEnBuscar() {
+  emit('update:modo', 'buscar')
+  nextTick(() => campoRef.value?.focus())
+}
 </script>
 
 <template>
@@ -41,7 +46,8 @@ function entrarEnEscanear() {
         :value="modelValue"
         type="text"
         data-no-barcode-scan
-        class="min-h-12 min-w-0 w-full flex-1 rounded-lg border border-slate-300 px-3 py-3 text-base"
+        :disabled="modo === 'escanear'"
+        class="min-h-12 min-w-0 w-full flex-1 rounded-lg border border-slate-300 px-3 py-3 text-base disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
         :placeholder="
           modo === 'escanear'
             ? 'Escanea el codigo. El lector lo agrega al carrito'
@@ -75,7 +81,7 @@ function entrarEnEscanear() {
             modo === 'buscar' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'
           "
           :aria-pressed="modo === 'buscar'"
-          @click="$emit('update:modo', 'buscar')"
+          @click="entrarEnBuscar"
         >
           Buscar codigo
         </button>
@@ -87,7 +93,7 @@ function entrarEnEscanear() {
     <p v-else class="mt-1 text-xs text-slate-500">
       {{
         modo === 'escanear'
-          ? 'Modo escanear: el lector esta activo.'
+          ? 'Modo escanear: el lector esta activo y el campo esta bloqueado.'
           : 'Modo buscar: el lector esta apagado. Escribe para filtrar.'
       }}
     </p>
