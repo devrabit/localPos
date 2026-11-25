@@ -1,7 +1,13 @@
 <script setup>
-import { PAYMENT_METHOD_OPTIONS } from '../constants/paymentMethods'
+import { computed } from 'vue'
+import {
+  PAYMENT_METHOD_OPTIONS,
+  PAYMENT_METHODS,
+  datafonoCommission,
+  totalWithPayment,
+} from '../constants/paymentMethods'
 
-defineProps({
+const props = defineProps({
   items: {
     type: Array,
     required: true,
@@ -25,6 +31,11 @@ defineProps({
 })
 
 const emit = defineEmits(['inc', 'dec', 'remove', 'checkout', 'update:paymentMethod'])
+
+const comision = computed(() =>
+  props.paymentMethod === PAYMENT_METHODS.DATAFONO ? datafonoCommission(props.total) : 0,
+)
+const totalPagar = computed(() => totalWithPayment(props.total, props.paymentMethod))
 </script>
 
 <template>
@@ -70,7 +81,11 @@ const emit = defineEmits(['inc', 'dec', 'remove', 'checkout', 'update:paymentMet
     </div>
 
     <div class="mt-4 border-t border-slate-200 pt-3">
-      <p class="text-lg font-bold text-slate-900">Total: $ {{ total.toFixed(2) }}</p>
+      <p v-if="comision > 0" class="text-sm text-slate-600">Subtotal: $ {{ Number(total).toFixed(2) }}</p>
+      <p v-if="comision > 0" class="text-sm font-medium text-amber-800">
+        Comision datafono (4%): $ {{ comision.toFixed(2) }}
+      </p>
+      <p class="text-lg font-bold text-slate-900">Total: $ {{ totalPagar.toFixed(2) }}</p>
       <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
         <p class="mb-2 text-sm font-semibold text-slate-700">Metodo de pago (obligatorio)</p>
         <div class="grid gap-2">
@@ -87,6 +102,7 @@ const emit = defineEmits(['inc', 'dec', 'remove', 'checkout', 'update:paymentMet
               @change="emit('update:paymentMethod', opt.value)"
             />
             <span class="text-sm font-medium text-slate-800">{{ opt.label }}</span>
+            <span v-if="opt.value === PAYMENT_METHODS.DATAFONO" class="text-xs text-slate-500">+4%</span>
           </label>
         </div>
         <p v-if="paymentError" class="mt-2 text-sm text-rose-700">{{ paymentError }}</p>

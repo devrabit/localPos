@@ -65,10 +65,11 @@ describe('useCarritoStore', () => {
       precio: 10,
       stock: -1,
     })
-    await store.crearOrden({ id: 99, nombre: 'Maria', telefono: '555' })
+    await store.crearOrden({ id: 99, nombre: 'Maria', telefono: '555' }, 'EFECTIVO')
     expect(api.post).toHaveBeenCalledWith(
       '/orden',
       expect.objectContaining({
+        paymentMethod: 'EFECTIVO',
         cliente: { id: 99, nombre: 'Maria', telefono: '555' },
         items: [{ productId: 1, variationId: 55, cantidad: 1 }],
       }),
@@ -87,8 +88,9 @@ describe('useCarritoStore', () => {
     vi.mocked(api.post).mockResolvedValue({ data: { orderId: 1 } })
     const store = useCarritoStore()
     store.agregarProducto({ id: 2, nombre: 'Y', precio: 5, tipo: 'simple', stock: -1 })
-    await store.crearOrden(null)
+    await store.crearOrden(null, 'EFECTIVO')
     expect(api.post).toHaveBeenCalledWith('/orden', {
+      paymentMethod: 'EFECTIVO',
       items: [{ productId: 2, cantidad: 1 }],
     })
   })
@@ -97,11 +99,47 @@ describe('useCarritoStore', () => {
     vi.mocked(api.post).mockResolvedValue({ data: { orderId: 42 } })
     const store = useCarritoStore()
     store.agregarProducto({ id: 1, nombre: 'A', precio: 10, tipo: 'simple', stock: -1 })
-    await store.crearOrden({ nombre: 'Juan', telefono: '300' })
+    await store.crearOrden({ nombre: 'Juan', telefono: '300' }, 'TRANSFERENCIA')
     expect(store.lastFactura).toBeTruthy()
     expect(store.lastFactura.id).toBe('42')
     expect(store.lastFactura.items).toHaveLength(1)
+    expect(store.lastFactura.total).toBe(10)
+    expect(store.lastFactura.metodo_pago).toBe('Transferencia virtual')
     expect(store.lastFactura.cliente.nombre).toBe('Juan')
     expect(store.items).toHaveLength(0)
+  })
+
+  it('crearOrden con datafono suma el 4% que devuelve el servidor', async () => {
+    vi.mocked(api.post).mockResolvedValue({
+      data: { orderId: 8, total: '10400.00', comision: 400 },
+    })
+    const store = useCarritoStore()
+    store.agregarProducto({ id: 1, nombre: 'A', precio: 10000, tipo: 'simple', stock: -1 })
+    await store.crearOrden({ nombre: 'Ana' }, 'DATAFONO')
+    expect(api.post).toHaveBeenCalledWith(
+      '/orden',
+      expect.objectContaining({ paymentMethod: 'DATAFONO' }),
+    )
+    expect(store.lastFactura.total).toBe(10400)
+    expect(store.lastFactura.metodo_pago).toBe('Pago con datafono')
+    expect(store.lastFactura.items).toEqual([
+      { nombre: 'A', cantidad: 1, precio: 10000, total: 10000 },
+      { nombre: 'Comision datafono (4%)', cantidad: 1, precio: 400, total: 400 },
+    ])
+  })
+
+  it('crearOrden con datafono calcula el 4% local si el servidor no envia comision', async () => {
+    vi.mocked(api.post).mockResolvedValue({ data: { orderId: 9 } })
+    const store = useCarritoStore()
+    store.agregarProducto({ id: 3, nombre: 'B', precio: 2500, tipo: 'simple', stock: -1 })
+    store.agregarProducto({ id: 3, nombre: 'B', precio: 2500, tipo: 'simple', stock: -1 })
+    await store.crearOrden(null, 'DATAFONO')
+    expect(store.lastFactura.total).toBe(5200)
+    expect(store.lastFactura.items[1]).toEqual({
+      nombre: 'Comision datafono (4%)',
+      cantidad: 1,
+      precio: 200,
+      total: 200,
+    })
   })
 })

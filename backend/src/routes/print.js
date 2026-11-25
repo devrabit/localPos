@@ -1,5 +1,6 @@
 const express = require('express')
 const { z } = require('zod')
+const { feeCharges } = require('../utils/datafonoFee')
 
 const printBodySchema = z.object({
   content: z.string().min(1).max(500_000),
@@ -20,12 +21,20 @@ function mapOrderToFactura(o) {
       nombre,
       documento: String(billing.phone || billing.email || ''),
     },
-    items: (o.line_items || []).map((li) => ({
-      nombre: li.name || `Producto ${li.product_id}`,
-      cantidad: Number(li.quantity || 0),
-      precio: Number(li.price || 0),
-      total: Number(li.total || 0),
-    })),
+    items: [
+      ...(o.line_items || []).map((li) => ({
+        nombre: li.name || `Producto ${li.product_id}`,
+        cantidad: Number(li.quantity || 0),
+        precio: Number(li.price || 0),
+        total: Number(li.total || 0),
+      })),
+      ...feeCharges(o.fee_lines).map((fee) => ({
+        nombre: fee.nombre,
+        cantidad: 1,
+        precio: fee.amount,
+        total: fee.amount,
+      })),
+    ],
     total: Number(o.total || 0),
     metodo_pago: o.payment_method_title || o.payment_method || 'POS',
   }

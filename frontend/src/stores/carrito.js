@@ -1,7 +1,13 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import api from '../services/api'
-import { PAYMENT_METHODS, paymentMethodLabel } from '../constants/paymentMethods'
+import {
+  DATAFONO_FEE_NAME,
+  PAYMENT_METHODS,
+  datafonoCommission,
+  paymentMethodLabel,
+  roundMoney,
+} from '../constants/paymentMethods'
 
 export function lineKeyFor(productId, variationId) {
   return variationId != null && variationId !== '' ? `v-${variationId}` : `p-${productId}`
@@ -147,9 +153,25 @@ export const useCarritoStore = defineStore('carrito', () => {
         precio: i.precio,
         total: i.precio * i.cantidad,
       }))
-      const totalNum = items.value.reduce((acc, i) => acc + i.precio * i.cantidad, 0)
+      const subtotal = items.value.reduce((acc, i) => acc + i.precio * i.cantidad, 0)
       const cli = cliente || {}
       const { data } = await api.post('/orden', payload)
+      let comision = 0
+      let totalNum = subtotal
+      if (paymentMethod === PAYMENT_METHODS.DATAFONO) {
+        const comisionRemota = Number(data?.comision)
+        comision = Number.isFinite(comisionRemota) ? comisionRemota : datafonoCommission(subtotal)
+        const totalRemoto = Number(data?.total)
+        totalNum = Number.isFinite(totalRemoto) ? totalRemoto : roundMoney(subtotal + comision)
+        if (comision > 0) {
+          itemsSnapshot.push({
+            nombre: DATAFONO_FEE_NAME,
+            cantidad: 1,
+            precio: comision,
+            total: comision,
+          })
+        }
+      }
       const metodoPago = paymentMethodLabel(paymentMethod)
       const nombreCliente =
         cli.nombre && String(cli.nombre).trim()

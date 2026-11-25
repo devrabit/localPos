@@ -60,3 +60,28 @@ test('POST /api/print/factura devuelve modelo factura', async () => {
   assert.equal(res.body.factura.items.length, 1)
   assert.equal(res.body.factura.cliente.nombre, 'Ana Lopez')
 })
+
+test('POST /api/print/factura incluye la comision del datafono', async () => {
+  const mockWoo = {
+    fetchProducts: async () => [],
+    fetchOrderById: async (id) => ({
+      id,
+      date_created: '2026-01-01T12:00:00',
+      total: '10400',
+      payment_method: 'datafono',
+      payment_method_title: 'Pago con datafono',
+      billing: { first_name: 'Ana', last_name: 'Lopez', phone: '300' },
+      line_items: [{ name: 'Item A', product_id: 1, quantity: 1, price: '10000', total: '10000' }],
+      fee_lines: [{ name: 'Comision datafono (4%)', total: '400' }],
+    }),
+  }
+  const res = await request(buildApp(mockWoo))
+    .post('/api/print/factura')
+    .send({ factura_id: 6 })
+    .expect(200)
+  assert.equal(res.body.factura.total, 10400)
+  assert.equal(res.body.factura.metodo_pago, 'Pago con datafono')
+  assert.equal(res.body.factura.items.length, 2)
+  assert.equal(res.body.factura.items[1].nombre, 'Comision datafono (4%)')
+  assert.equal(res.body.factura.items[1].total, 400)
+})
