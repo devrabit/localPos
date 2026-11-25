@@ -69,6 +69,11 @@ async function createOrder(payload) {
   return data
 }
 
+async function updateOrder(id, payload) {
+  const { data } = await wooClient.put(`/orders/${id}`, payload)
+  return data
+}
+
 async function fetchOrdersPage(params) {
   const response = await wooClient.get('/orders', { params })
   const total = parseInt(response.headers['x-wp-total'] || '0', 10)
@@ -104,6 +109,7 @@ module.exports = {
   fetchCustomers,
   createCustomer,
   createOrder,
+  updateOrder,
   fetchOrdersPage,
   fetchOrderById,
   updateProductSku,

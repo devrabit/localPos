@@ -128,6 +128,37 @@ test('GET /api/ordenes/:id devuelve detalle', async () => {
   assert.equal(res.body.metodoPago, 'POS')
 })
 
+test('GET /api/ordenes/:id incluye la comision del datafono', async () => {
+  const mockWoo = {
+    ...baseWoo,
+    fetchOrdersPage: async () => ({ orders: [], total: 0, totalPages: 1 }),
+    fetchOrderById: async (id) => ({
+      id,
+      billing: { first_name: 'A', last_name: 'B', phone: '1', email: 'a@b.com' },
+      total: '10400',
+      status: 'completed',
+      date_created: '2026-01-01T00:00:00',
+      payment_method_title: 'Pago con datafono',
+      line_items: [
+        {
+          product_id: 3,
+          name: 'Producto X',
+          quantity: 1,
+          price: '10000',
+          total: '10000',
+        },
+      ],
+      fee_lines: [{ name: 'Comision datafono (4%)', total: '400' }],
+    }),
+  }
+  const res = await request(buildApp(mockWoo)).get('/api/ordenes/8').expect(200)
+  assert.equal(res.body.total, 10400)
+  assert.equal(res.body.items.length, 2)
+  assert.equal(res.body.items[1].nombre, 'Comision datafono (4%)')
+  assert.equal(res.body.items[1].lineTotal, 400)
+  assert.equal(res.body.metodoPago, 'Pago con datafono')
+})
+
 test('GET /api/ordenes/:id 404', async () => {
   const mockWoo = {
     ...baseWoo,
