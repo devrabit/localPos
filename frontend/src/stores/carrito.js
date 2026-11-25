@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import api from '../services/api'
 import { changeMinor, minorToMoney, moneyToMinor, parseCashReceivedInput } from '../utils/cashChange'
+import { DATAFONO_FEE_NAME, datafonoCommission, roundMoney } from '../constants/paymentMethods'
 
 export function lineKeyFor(productId, variationId) {
   return variationId != null && variationId !== '' ? `v-${variationId}` : `p-${productId}`
@@ -11,12 +12,14 @@ export const PAYMENT_METHODS = {
   CASH: 'EFECTIVO',
   TRANSFER: 'TRANSFERENCIA',
   MIXED: 'MIXTO',
+  DATAFONO: 'DATAFONO',
 }
 
 export const PAYMENT_OPTIONS = [
   { value: PAYMENT_METHODS.CASH, label: 'Pago en efectivo' },
   { value: PAYMENT_METHODS.TRANSFER, label: 'Transferencia virtual' },
   { value: PAYMENT_METHODS.MIXED, label: 'Mixto (transferencia + efectivo)' },
+  { value: PAYMENT_METHODS.DATAFONO, label: 'Pago con datafono' },
 ]
 
 export function paymentLabelFromValue(value) {
@@ -275,14 +278,14 @@ export const useCarritoStore = defineStore('carrito', () => {
         precio: i.precio,
         total: i.precio * i.cantidad,
       }))
-      const totalNum = items.value.reduce((acc, i) => acc + i.precio * i.cantidad, 0)
+      const subtotal = items.value.reduce((acc, i) => acc + i.precio * i.cantidad, 0)
       const recNum =
         paymentMethod.value === PAYMENT_METHODS.CASH || paymentMethod.value === PAYMENT_METHODS.MIXED
           ? cashReceivedParsed.value
           : null
       const transferNum = paymentMethod.value === PAYMENT_METHODS.MIXED ? mixedTransferParsed.value : null
       const effectiveCashBase =
-        paymentMethod.value === PAYMENT_METHODS.MIXED && transferNum != null ? totalNum - transferNum : totalNum
+        paymentMethod.value === PAYMENT_METHODS.MIXED && transferNum != null ? subtotal - transferNum : subtotal
       const cambioNum =
         (paymentMethod.value === PAYMENT_METHODS.CASH || paymentMethod.value === PAYMENT_METHODS.MIXED) &&
         recNum != null
@@ -290,6 +293,22 @@ export const useCarritoStore = defineStore('carrito', () => {
           : null
       const cli = cliente || {}
       const { data } = await api.post('/orden', payload)
+      let comision = 0
+      let totalNum = subtotal
+      if (paymentMethod.value === PAYMENT_METHODS.DATAFONO) {
+        const comisionRemota = Number(data?.comision)
+        comision = Number.isFinite(comisionRemota) ? comisionRemota : datafonoCommission(subtotal)
+        const totalRemoto = Number(data?.total)
+        totalNum = Number.isFinite(totalRemoto) ? totalRemoto : roundMoney(subtotal + comision)
+        if (comision > 0) {
+          itemsSnapshot.push({
+            nombre: DATAFONO_FEE_NAME,
+            cantidad: 1,
+            precio: comision,
+            total: comision,
+          })
+        }
+      }
       const nombreCliente =
         cli.nombre && String(cli.nombre).trim()
           ? String(cli.nombre).trim()

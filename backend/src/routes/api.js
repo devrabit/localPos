@@ -19,6 +19,7 @@ const { createOutflow, listOutflows } = require('../services/outflowsStorage')
 const annotationsStorage = require('../services/annotationsStorage')
 const pedidosStorage = require('../services/pedidosStorage')
 const { askVendedor: defaultAskVendedor } = require('../services/asesoriaGateway')
+const { DATAFONO_FEE_NAME, datafonoCommission, feeCharges } = require('../utils/datafonoFee')
 
 const createCustomerSchema = z.object({
   nombre: z.string().min(2),
@@ -50,7 +51,7 @@ function randomWooPassword() {
   return crypto.randomBytes(18).toString('base64url')
 }
 
-const paymentMethodEnum = z.enum(['EFECTIVO', 'TRANSFERENCIA', 'MIXTO'])
+const paymentMethodEnum = z.enum(['EFECTIVO', 'TRANSFERENCIA', 'MIXTO', 'DATAFONO'])
 
 const createOrderSchema = z
   .object({
@@ -373,14 +374,24 @@ function mapOrdenDetalle(o) {
     estado: o.status,
     fecha: o.date_created || '',
     metodoPago: o.payment_method_title || o.payment_method || '-',
-    items: (o.line_items || []).map((li) => ({
-      productId: li.product_id,
-      variationId: li.variation_id || null,
-      nombre: li.name || `Producto ${li.product_id}`,
-      cantidad: li.quantity,
-      precio: Number(li.price || 0),
-      lineTotal: Number(li.total || 0),
-    })),
+    items: [
+      ...(o.line_items || []).map((li) => ({
+        productId: li.product_id,
+        variationId: li.variation_id || null,
+        nombre: li.name || `Producto ${li.product_id}`,
+        cantidad: li.quantity,
+        precio: Number(li.price || 0),
+        lineTotal: Number(li.total || 0),
+      })),
+      ...feeCharges(o.fee_lines).map((fee) => ({
+        productId: null,
+        variationId: null,
+        nombre: fee.nombre,
+        cantidad: 1,
+        precio: fee.amount,
+        lineTotal: fee.amount,
+      })),
+    ],
   }
 }
 
@@ -681,13 +692,20 @@ function createApiRouter(woo = defaultWoo, deps = {}) {
       const orderBody = {
         status: 'completed',
         set_paid: true,
-        payment_method: selectedPaymentMethod === 'EFECTIVO' ? 'cod' : 'bacs',
+        payment_method:
+          selectedPaymentMethod === 'EFECTIVO'
+            ? 'cod'
+            : selectedPaymentMethod === 'DATAFONO'
+              ? 'datafono'
+              : 'bacs',
         payment_method_title:
           selectedPaymentMethod === 'EFECTIVO'
             ? 'Pago en efectivo'
             : selectedPaymentMethod === 'MIXTO'
               ? 'Pago mixto'
-              : 'Transferencia virtual',
+              : selectedPaymentMethod === 'DATAFONO'
+                ? 'Pago con datafono'
+                : 'Transferencia virtual',
         billing: {
           first_name: firstName,
           last_name: lastName,
@@ -758,14 +776,37 @@ function createApiRouter(woo = defaultWoo, deps = {}) {
         orderBody.customer_id = c.id
       }
 
-      const order = await woo.createOrder(orderBody)
+      let order = await woo.createOrder(orderBody)
       invalidateProductosScanCache()
       invalidateSinSkuCache()
+      let comision = 0
+      if (selectedPaymentMethod === 'DATAFONO') {
+        const base = Number(order.total)
+        if (!Number.isFinite(base)) {
+          throw new Error('No se pudo calcular la comision del datafono')
+        }
+        comision = datafonoCommission(base)
+        if (comision > 0) {
+          if (typeof woo.updateOrder !== 'function') {
+            throw new Error('No se pudo aplicar la comision del datafono')
+          }
+          order = await woo.updateOrder(order.id, {
+            fee_lines: [
+              {
+                name: DATAFONO_FEE_NAME,
+                total: comision.toFixed(2),
+                tax_status: 'none',
+              },
+            ],
+          })
+        }
+      }
 
       res.status(201).json({
         orderId: order.id,
         status: order.status,
         total: order.total,
+        comision,
       })
     } catch (error) {
       next(error)

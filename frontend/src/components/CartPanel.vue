@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { PAYMENT_METHODS, PAYMENT_OPTIONS } from '../stores/carrito'
 import { formatMoneyEs } from '../utils/cashChange'
+import { datafonoCommission, totalWithPayment } from '../constants/paymentMethods'
 
 const props = defineProps({
   items: {
@@ -86,6 +87,11 @@ const cashSufficient = computed(
     props.changeMinor != null &&
     props.changeMinor >= 0,
 )
+
+const comision = computed(() =>
+  props.paymentMethod === PAYMENT_METHODS.DATAFONO ? datafonoCommission(props.total) : 0,
+)
+const totalPagar = computed(() => totalWithPayment(props.total, props.paymentMethod))
 </script>
 
 <template>
@@ -131,7 +137,11 @@ const cashSufficient = computed(
     </div>
 
     <div class="mt-4 border-t border-slate-200 pt-3">
-      <p class="text-lg font-bold text-slate-900">Total: $ {{ total.toFixed(2) }}</p>
+      <p v-if="comision > 0" class="text-sm text-slate-600">Subtotal: $ {{ Number(total).toFixed(2) }}</p>
+      <p v-if="comision > 0" class="text-sm font-medium text-amber-800">
+        Comision datafono (4%): $ {{ comision.toFixed(2) }}
+      </p>
+      <p class="text-lg font-bold text-slate-900">Total: $ {{ totalPagar.toFixed(2) }}</p>
       <fieldset class="mt-3">
         <legend class="mb-2 text-sm font-semibold text-slate-800">Metodo de pago *</legend>
         <div class="grid gap-2">
@@ -148,6 +158,7 @@ const cashSufficient = computed(
               @change="emit('update:paymentMethod', option.value)"
             />
             <span class="text-sm text-slate-800">{{ option.label }}</span>
+            <span v-if="option.value === PAYMENT_METHODS.DATAFONO" class="text-xs text-slate-500">+4%</span>
           </label>
         </div>
       </fieldset>

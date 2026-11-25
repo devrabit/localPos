@@ -138,6 +138,8 @@ describe('useCarritoStore', () => {
     expect(store.lastFactura).toBeTruthy()
     expect(store.lastFactura.id).toBe('42')
     expect(store.lastFactura.items).toHaveLength(1)
+    expect(store.lastFactura.total).toBe(10)
+    expect(store.lastFactura.metodo_pago).toBe('Transferencia virtual')
     expect(store.lastFactura.cliente.nombre).toBe('Juan')
     expect(store.lastFactura.metodo_pago).toBe('Transferencia virtual')
     expect(store.items).toHaveLength(0)
@@ -172,5 +174,41 @@ describe('useCarritoStore', () => {
     store.cashReceivedStr = '0'
     await expect(store.crearOrden(null)).rejects.toThrow('La transferencia no puede superar el total')
     expect(api.post).not.toHaveBeenCalled()
+  })
+
+  it('crearOrden con datafono suma el 4% que devuelve el servidor', async () => {
+    vi.mocked(api.post).mockResolvedValue({
+      data: { orderId: 8, total: '10400.00', comision: 400 },
+    })
+    const store = useCarritoStore()
+    store.agregarProducto({ id: 1, nombre: 'A', precio: 10000, tipo: 'simple', stock: -1 })
+    store.paymentMethod = PAYMENT_METHODS.DATAFONO
+    await store.crearOrden({ nombre: 'Ana' })
+    expect(api.post).toHaveBeenCalledWith(
+      '/orden',
+      expect.objectContaining({ paymentMethod: 'DATAFONO', payment_method: 'DATAFONO' }),
+    )
+    expect(store.lastFactura.total).toBe(10400)
+    expect(store.lastFactura.metodo_pago).toBe('Pago con datafono')
+    expect(store.lastFactura.items).toEqual([
+      { nombre: 'A', cantidad: 1, precio: 10000, total: 10000 },
+      { nombre: 'Comision datafono (4%)', cantidad: 1, precio: 400, total: 400 },
+    ])
+  })
+
+  it('crearOrden con datafono calcula el 4% local si el servidor no envia comision', async () => {
+    vi.mocked(api.post).mockResolvedValue({ data: { orderId: 9 } })
+    const store = useCarritoStore()
+    store.agregarProducto({ id: 3, nombre: 'B', precio: 2500, tipo: 'simple', stock: -1 })
+    store.agregarProducto({ id: 3, nombre: 'B', precio: 2500, tipo: 'simple', stock: -1 })
+    store.paymentMethod = PAYMENT_METHODS.DATAFONO
+    await store.crearOrden(null)
+    expect(store.lastFactura.total).toBe(5200)
+    expect(store.lastFactura.items[1]).toEqual({
+      nombre: 'Comision datafono (4%)',
+      cantidad: 1,
+      precio: 200,
+      total: 200,
+    })
   })
 })

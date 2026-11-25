@@ -429,6 +429,68 @@ test('POST /api/orden envia variation_id', async () => {
   assert.equal(captured.line_items[0].product_id, 1)
   assert.equal(captured.payment_method, 'bacs')
   assert.equal(captured.payment_method_title, 'Transferencia virtual')
+  assert.equal(captured.fee_lines, undefined)
+})
+
+test('POST /api/orden datafono suma comision del 4% al total', async () => {
+  let created
+  let updated
+  const mockWoo = {
+    fetchProducts: async () => [],
+    fetchCustomers: async () => [],
+    createCustomer: async () => ({}),
+    createOrder: async (body) => {
+      created = body
+      return { id: 300, status: 'completed', total: '10000.00' }
+    },
+    updateOrder: async (id, body) => {
+      updated = { id, body }
+      return { id, status: 'completed', total: '10400.00' }
+    },
+  }
+  const res = await request(buildApp(mockWoo))
+    .post('/api/orden')
+    .send({
+      paymentMethod: 'DATAFONO',
+      items: [{ productId: 8, cantidad: 1 }],
+    })
+    .expect(201)
+
+  assert.equal(created.payment_method, 'datafono')
+  assert.equal(created.payment_method_title, 'Pago con datafono')
+  assert.equal(created.fee_lines, undefined)
+  assert.equal(updated.id, 300)
+  assert.equal(updated.body.fee_lines[0].name, 'Comision datafono (4%)')
+  assert.equal(updated.body.fee_lines[0].total, '400.00')
+  assert.equal(updated.body.fee_lines[0].tax_status, 'none')
+  assert.equal(res.body.orderId, 300)
+  assert.equal(res.body.total, '10400.00')
+  assert.equal(res.body.comision, 400)
+})
+
+test('POST /api/orden datafono no agrega cargo si la comision redondea a cero', async () => {
+  let updates = 0
+  const mockWoo = {
+    fetchProducts: async () => [],
+    fetchCustomers: async () => [],
+    createCustomer: async () => ({}),
+    createOrder: async () => ({ id: 301, status: 'completed', total: '0.10' }),
+    updateOrder: async () => {
+      updates += 1
+      return { id: 301, status: 'completed', total: '0.10' }
+    },
+  }
+  const res = await request(buildApp(mockWoo))
+    .post('/api/orden')
+    .send({
+      paymentMethod: 'DATAFONO',
+      items: [{ productId: 8, cantidad: 1 }],
+    })
+    .expect(201)
+
+  assert.equal(updates, 0)
+  assert.equal(res.body.comision, 0)
+  assert.equal(res.body.total, '0.10')
 })
 
 test('POST /api/orden efectivo con variacion guarda meta de cambio', async () => {
